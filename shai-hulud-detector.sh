@@ -52,7 +52,7 @@ COMPROMISED_NAMESPACES=(
     "@nativescript-community"
 )
 
-# Global arrays to store findings
+# Global arrays to store findings with risk levels
 WORKFLOW_FILES=()
 MALICIOUS_HASHES=()
 COMPROMISED_FOUND=()
@@ -62,6 +62,7 @@ POSTINSTALL_HOOKS=()
 TRUFFLEHOG_ACTIVITY=()
 SHAI_HULUD_REPOS=()
 NAMESPACE_WARNINGS=()
+LOW_RISK_FINDINGS=()
 
 # Usage function
 usage() {
@@ -223,39 +224,167 @@ check_git_branches() {
     done < <(find "$scan_dir" -name ".git" -type d -print0 2>/dev/null)
 }
 
-# Check for Trufflehog activity and secret scanning
+# Helper function to determine file context
+get_file_context() {
+    local file_path=$1
+
+    # Check if file is in node_modules
+    if [[ "$file_path" == *"/node_modules/"* ]]; then
+        echo "node_modules"
+        return
+    fi
+
+    # Check if file is documentation
+    if [[ "$file_path" == *".md" ]] || [[ "$file_path" == *".txt" ]] || [[ "$file_path" == *".rst" ]]; then
+        echo "documentation"
+        return
+    fi
+
+    # Check if file is TypeScript definitions
+    if [[ "$file_path" == *".d.ts" ]]; then
+        echo "type_definitions"
+        return
+    fi
+
+    # Check if file is in build/dist directories
+    if [[ "$file_path" == *"/dist/"* ]] || [[ "$file_path" == *"/build/"* ]] || [[ "$file_path" == *"/public/"* ]]; then
+        echo "build_output"
+        return
+    fi
+
+    # Check if it's a config file
+    if [[ "$(basename "$file_path")" == *"config"* ]] || [[ "$(basename "$file_path")" == *".config."* ]]; then
+        echo "configuration"
+        return
+    fi
+
+    echo "source_code"
+}
+
+# Helper function to check for legitimate patterns
+is_legitimate_pattern() {
+    local file_path=$1
+    local content_sample="$2"
+
+    # Vue.js development patterns
+    if [[ "$content_sample" == *"process.env.NODE_ENV"* ]] && [[ "$content_sample" == *"production"* ]]; then
+        return 0  # legitimate
+    fi
+
+    # Common framework patterns
+    if [[ "$content_sample" == *"createApp"* ]] || [[ "$content_sample" == *"Vue"* ]]; then
+        return 0  # legitimate
+    fi
+
+    # Package manager and build tool patterns
+    if [[ "$content_sample" == *"webpack"* ]] || [[ "$content_sample" == *"vite"* ]] || [[ "$content_sample" == *"rollup"* ]]; then
+        return 0  # legitimate
+    fi
+
+    return 1  # potentially suspicious
+}
+
+# Check for Trufflehog activity and secret scanning with context awareness
 check_trufflehog_activity() {
     local scan_dir=$1
     print_status "$BLUE" "🔍 Checking for Trufflehog activity and secret scanning..."
 
-    # Look for trufflehog binary or execution evidence
+    # Look for trufflehog binary files (always HIGH RISK)
+    while IFS= read -r binary_file; do
+        if [[ -f "$binary_file" ]]; then
+            TRUFFLEHOG_ACTIVITY+=("$binary_file:HIGH:Trufflehog binary found")
+        fi
+    done < <(find "$scan_dir" -name "*trufflehog*" -type f 2>/dev/null)
+
+    # Look for potential trufflehog activity in files
     while IFS= read -r -d '' file; do
         if [[ -f "$file" && -r "$file" ]]; then
-            # Check for trufflehog references in code
+            local context=$(get_file_context "$file")
+            local content_sample=$(head -20 "$file" | tr '\n' ' ')
+
+            # Check for explicit trufflehog references
             if grep -l "trufflehog\|TruffleHog" "$file" >/dev/null 2>&1; then
-                TRUFFLEHOG_ACTIVITY+=("$file:Contains trufflehog references")
+                case "$context" in
+                    "documentation")
+                        # Documentation mentioning trufflehog is usually legitimate
+                        continue
+                        ;;
+                    "node_modules"|"type_definitions"|"build_output")
+                        # Framework code mentioning trufflehog is suspicious but not high risk
+                        TRUFFLEHOG_ACTIVITY+=("$file:MEDIUM:Contains trufflehog references in $context")
+                        ;;
+                    *)
+                        # Source code with trufflehog references needs investigation
+                        if [[ "$content_sample" == *"subprocess"* ]] && [[ "$content_sample" == *"curl"* ]]; then
+                            TRUFFLEHOG_ACTIVITY+=("$file:HIGH:Suspicious trufflehog execution pattern")
+                        else
+                            TRUFFLEHOG_ACTIVITY+=("$file:MEDIUM:Contains trufflehog references in source code")
+                        fi
+                        ;;
+                esac
             fi
 
-            # Check for secret scanning patterns
+            # Check for credential scanning combined with exfiltration
             if grep -l "AWS_ACCESS_KEY\|GITHUB_TOKEN\|NPM_TOKEN" "$file" >/dev/null 2>&1; then
-                TRUFFLEHOG_ACTIVITY+=("$file:Contains credential scanning patterns")
+                case "$context" in
+                    "type_definitions"|"documentation")
+                        # Type definitions and docs mentioning credentials are normal
+                        continue
+                        ;;
+                    "node_modules")
+                        # Package manager code mentioning credentials might be legitimate
+                        TRUFFLEHOG_ACTIVITY+=("$file:LOW:Credential patterns in node_modules")
+                        ;;
+                    "configuration")
+                        # Config files mentioning credentials might be legitimate
+                        if [[ "$content_sample" == *"DefinePlugin"* ]] || [[ "$content_sample" == *"webpack"* ]]; then
+                            continue  # webpack config is legitimate
+                        fi
+                        TRUFFLEHOG_ACTIVITY+=("$file:MEDIUM:Credential patterns in configuration")
+                        ;;
+                    *)
+                        # Source code mentioning credentials + exfiltration is suspicious
+                        if [[ "$content_sample" == *"webhook.site"* ]] || [[ "$content_sample" == *"curl"* ]] || [[ "$content_sample" == *"https.request"* ]]; then
+                            TRUFFLEHOG_ACTIVITY+=("$file:HIGH:Credential patterns with potential exfiltration")
+                        else
+                            TRUFFLEHOG_ACTIVITY+=("$file:MEDIUM:Contains credential scanning patterns")
+                        fi
+                        ;;
+                esac
             fi
 
-            # Check for environment variable scanning
+            # Check for environment variable scanning (refined logic)
             if grep -l "process\.env\|os\.environ\|getenv" "$file" >/dev/null 2>&1; then
-                if grep -l "scan\|search\|collect\|exfiltrat" "$file" >/dev/null 2>&1; then
-                    TRUFFLEHOG_ACTIVITY+=("$file:Suspicious environment variable access")
-                fi
+                case "$context" in
+                    "type_definitions"|"documentation")
+                        # Type definitions and docs are normal
+                        continue
+                        ;;
+                    "node_modules"|"build_output")
+                        # Framework code using process.env is normal
+                        if is_legitimate_pattern "$file" "$content_sample"; then
+                            continue
+                        fi
+                        TRUFFLEHOG_ACTIVITY+=("$file:LOW:Environment variable access in $context")
+                        ;;
+                    "configuration")
+                        # Config files using env vars is normal
+                        continue
+                        ;;
+                    *)
+                        # Only flag if combined with suspicious patterns
+                        if [[ "$content_sample" == *"webhook.site"* ]] && [[ "$content_sample" == *"exfiltrat"* ]]; then
+                            TRUFFLEHOG_ACTIVITY+=("$file:HIGH:Environment scanning with exfiltration")
+                        elif [[ "$content_sample" == *"scan"* ]] || [[ "$content_sample" == *"harvest"* ]] || [[ "$content_sample" == *"steal"* ]]; then
+                            if ! is_legitimate_pattern "$file" "$content_sample"; then
+                                TRUFFLEHOG_ACTIVITY+=("$file:MEDIUM:Potentially suspicious environment variable access")
+                            fi
+                        fi
+                        ;;
+                esac
             fi
         fi
     done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.py" -o -name "*.sh" -o -name "*.json" \) -print0 2>/dev/null)
-
-    # Look for trufflehog binary files
-    while IFS= read -r binary_file; do
-        if [[ -f "$binary_file" ]]; then
-            TRUFFLEHOG_ACTIVITY+=("$binary_file:Trufflehog binary found")
-        fi
-    done < <(find "$scan_dir" -name "*trufflehog*" -type f 2>/dev/null)
 }
 
 # Check for Shai-Hulud repositories
@@ -387,21 +516,67 @@ generate_report() {
         echo
     fi
 
-    # Report Trufflehog activity
-    if [[ ${#TRUFFLEHOG_ACTIVITY[@]} -gt 0 ]]; then
+    # Report Trufflehog activity by risk level
+    local trufflehog_high=()
+    local trufflehog_medium=()
+    local trufflehog_low=()
+
+    # Categorize Trufflehog findings by risk level
+    for entry in "${TRUFFLEHOG_ACTIVITY[@]}"; do
+        local file_path="${entry%%:*}"
+        local risk_level="${entry#*:}"
+        risk_level="${risk_level%%:*}"
+        local activity_info="${entry#*:*:}"
+
+        case "$risk_level" in
+            "HIGH")
+                trufflehog_high+=("$file_path:$activity_info")
+                ;;
+            "MEDIUM")
+                trufflehog_medium+=("$file_path:$activity_info")
+                ;;
+            "LOW")
+                trufflehog_low+=("$file_path:$activity_info")
+                ;;
+        esac
+    done
+
+    # Report HIGH RISK Trufflehog activity
+    if [[ ${#trufflehog_high[@]} -gt 0 ]]; then
         print_status "$RED" "🚨 HIGH RISK: Trufflehog/secret scanning activity detected:"
-        for entry in "${TRUFFLEHOG_ACTIVITY[@]}"; do
+        for entry in "${trufflehog_high[@]}"; do
             local file_path="${entry%:*}"
             local activity_info="${entry#*:}"
             echo "   - Activity: $activity_info"
             echo "     Found in: $file_path"
-            show_file_preview "$file_path" "Contains secret scanning activity: $activity_info"
+            show_file_preview "$file_path" "HIGH RISK: $activity_info"
             ((high_risk++))
         done
-        echo -e "   ${YELLOW}NOTE: Trufflehog is used by attackers to scan for credentials.${NC}"
-        echo -e "   ${YELLOW}Check if these files are part of legitimate security tooling.${NC}"
+        echo -e "   ${RED}NOTE: These patterns indicate likely malicious credential harvesting.${NC}"
+        echo -e "   ${RED}Immediate investigation and remediation required.${NC}"
         echo
     fi
+
+    # Report MEDIUM RISK Trufflehog activity
+    if [[ ${#trufflehog_medium[@]} -gt 0 ]]; then
+        print_status "$YELLOW" "⚠️  MEDIUM RISK: Potentially suspicious secret scanning patterns:"
+        for entry in "${trufflehog_medium[@]}"; do
+            local file_path="${entry%:*}"
+            local activity_info="${entry#*:}"
+            echo "   - Pattern: $activity_info"
+            echo "     Found in: $file_path"
+            show_file_preview "$file_path" "MEDIUM RISK: $activity_info"
+            ((medium_risk++))
+        done
+        echo -e "   ${YELLOW}NOTE: These may be legitimate security tools or framework code.${NC}"
+        echo -e "   ${YELLOW}Manual review recommended to determine if they are malicious.${NC}"
+        echo
+    fi
+
+    # Store LOW RISK findings for optional reporting
+    for entry in "${trufflehog_low[@]}"; do
+        LOW_RISK_FINDINGS+=("Trufflehog pattern: $entry")
+    done
 
     # Report Shai-Hulud repositories
     if [[ ${#SHAI_HULUD_REPOS[@]} -gt 0 ]]; then
@@ -442,23 +617,47 @@ generate_report() {
     fi
 
     total_issues=$((high_risk + medium_risk))
+    local low_risk_count=${#LOW_RISK_FINDINGS[@]}
 
     # Summary
     print_status "$BLUE" "=============================================="
     if [[ $total_issues -eq 0 ]]; then
         print_status "$GREEN" "✅ No indicators of Shai-Hulud compromise detected."
         print_status "$GREEN" "Your system appears clean from this specific attack."
+
+        # Show low risk findings if any (informational only)
+        if [[ $low_risk_count -gt 0 ]]; then
+            echo
+            print_status "$BLUE" "ℹ️  LOW RISK FINDINGS (informational only):"
+            for finding in "${LOW_RISK_FINDINGS[@]}"; do
+                echo "   - $finding"
+            done
+            echo -e "   ${BLUE}NOTE: These are likely legitimate framework code or dependencies.${NC}"
+        fi
     else
         print_status "$RED" "🔍 SUMMARY:"
         print_status "$RED" "   High Risk Issues: $high_risk"
         print_status "$YELLOW" "   Medium Risk Issues: $medium_risk"
-        print_status "$BLUE" "   Total Issues: $total_issues"
+        if [[ $low_risk_count -gt 0 ]]; then
+            print_status "$BLUE" "   Low Risk (informational): $low_risk_count"
+        fi
+        print_status "$BLUE" "   Total Critical Issues: $total_issues"
         echo
         print_status "$YELLOW" "⚠️  IMPORTANT:"
         print_status "$YELLOW" "   - High risk issues likely indicate actual compromise"
         print_status "$YELLOW" "   - Medium risk issues require manual investigation"
+        print_status "$YELLOW" "   - Low risk issues are likely false positives from legitimate code"
         print_status "$YELLOW" "   - Consider running additional security scans"
         print_status "$YELLOW" "   - Review your npm audit logs and package history"
+
+        if [[ $low_risk_count -gt 0 ]] && [[ $total_issues -lt 5 ]]; then
+            echo
+            print_status "$BLUE" "ℹ️  LOW RISK FINDINGS (likely false positives):"
+            for finding in "${LOW_RISK_FINDINGS[@]}"; do
+                echo "   - $finding"
+            done
+            echo -e "   ${BLUE}NOTE: These are typically legitimate framework patterns.${NC}"
+        fi
     fi
     print_status "$BLUE" "=============================================="
 }
