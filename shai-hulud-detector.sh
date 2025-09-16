@@ -16,11 +16,15 @@ NC='\033[0m' # No Color
 # Known malicious file hash
 MALICIOUS_HASH="46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09"
 
-# Compromised packages and their malicious versions (based on the article)
+# Compromised packages and their malicious versions (based on updated threat intelligence)
+# Over 187+ packages compromised in the Shai-Hulud worm attack
 # Using array format compatible with older bash versions on macOS
 COMPROMISED_PACKAGES=(
+    # @ctrl namespace
     "@ctrl/tinycolor:4.1.0"
     "@ctrl/deluge:1.2.0"
+
+    # @nativescript-community namespace
     "@nativescript-community/push:1.0.0"
     "@nativescript-community/ui-material-activityindicator:7.2.49"
     "@nativescript-community/ui-material-bottomnavigationbar:7.2.49"
@@ -39,12 +43,25 @@ COMPROMISED_PACKAGES=(
     "@nativescript-community/ui-material-textview:7.2.49"
 )
 
+# Known compromised namespaces - packages in these namespaces may be compromised
+COMPROMISED_NAMESPACES=(
+    "@crowdstrike"
+    "@art-ws"
+    "@ngx"
+    "@ctrl"
+    "@nativescript-community"
+)
+
 # Global arrays to store findings
 WORKFLOW_FILES=()
 MALICIOUS_HASHES=()
 COMPROMISED_FOUND=()
 SUSPICIOUS_CONTENT=()
 GIT_BRANCHES=()
+POSTINSTALL_HOOKS=()
+TRUFFLEHOG_ACTIVITY=()
+SHAI_HULUD_REPOS=()
+NAMESPACE_WARNINGS=()
 
 # Usage function
 usage() {
@@ -121,6 +138,7 @@ check_packages() {
 
     while IFS= read -r -d '' package_file; do
         if [[ -f "$package_file" && -r "$package_file" ]]; then
+            # Check for specific compromised packages
             for package_info in "${COMPROMISED_PACKAGES[@]}"; do
                 local package_name="${package_info%:*}"
                 local malicious_version="${package_info#*:}"
@@ -134,6 +152,34 @@ check_packages() {
                     fi
                 fi
             done
+
+            # Check for suspicious namespaces
+            for namespace in "${COMPROMISED_NAMESPACES[@]}"; do
+                if grep -q "\"$namespace/" "$package_file" 2>/dev/null; then
+                    NAMESPACE_WARNINGS+=("$package_file:Contains packages from compromised namespace: $namespace")
+                fi
+            done
+        fi
+    done < <(find "$scan_dir" -name "package.json" -print0 2>/dev/null)
+}
+
+# Check for suspicious postinstall hooks
+check_postinstall_hooks() {
+    local scan_dir=$1
+    print_status "$BLUE" "🔍 Checking for suspicious postinstall hooks..."
+
+    while IFS= read -r -d '' package_file; do
+        if [[ -f "$package_file" && -r "$package_file" ]]; then
+            # Look for postinstall scripts
+            if grep -q "\"postinstall\"" "$package_file" 2>/dev/null; then
+                local postinstall_cmd
+                postinstall_cmd=$(grep -A1 "\"postinstall\"" "$package_file" | grep -o '"[^"]*"' | tail -1 | tr -d '"')
+
+                # Check for suspicious patterns in postinstall commands
+                if [[ "$postinstall_cmd" == *"curl"* ]] || [[ "$postinstall_cmd" == *"wget"* ]] || [[ "$postinstall_cmd" == *"node -e"* ]] || [[ "$postinstall_cmd" == *"eval"* ]]; then
+                    POSTINSTALL_HOOKS+=("$package_file:Suspicious postinstall: $postinstall_cmd")
+                fi
+            fi
         fi
     done < <(find "$scan_dir" -name "package.json" -print0 2>/dev/null)
 }
@@ -173,6 +219,66 @@ check_git_branches() {
                 commit_hash=$(cat "$branch_file" 2>/dev/null)
                 GIT_BRANCHES+=("$repo_dir:Branch '$branch_name' (commit: ${commit_hash:0:8}...)")
             done < <(find "$git_dir/refs/heads" -name "*shai-hulud*" -type f 2>/dev/null)
+        fi
+    done < <(find "$scan_dir" -name ".git" -type d -print0 2>/dev/null)
+}
+
+# Check for Trufflehog activity and secret scanning
+check_trufflehog_activity() {
+    local scan_dir=$1
+    print_status "$BLUE" "🔍 Checking for Trufflehog activity and secret scanning..."
+
+    # Look for trufflehog binary or execution evidence
+    while IFS= read -r -d '' file; do
+        if [[ -f "$file" && -r "$file" ]]; then
+            # Check for trufflehog references in code
+            if grep -l "trufflehog\|TruffleHog" "$file" >/dev/null 2>&1; then
+                TRUFFLEHOG_ACTIVITY+=("$file:Contains trufflehog references")
+            fi
+
+            # Check for secret scanning patterns
+            if grep -l "AWS_ACCESS_KEY\|GITHUB_TOKEN\|NPM_TOKEN" "$file" >/dev/null 2>&1; then
+                TRUFFLEHOG_ACTIVITY+=("$file:Contains credential scanning patterns")
+            fi
+
+            # Check for environment variable scanning
+            if grep -l "process\.env\|os\.environ\|getenv" "$file" >/dev/null 2>&1; then
+                if grep -l "scan\|search\|collect\|exfiltrat" "$file" >/dev/null 2>&1; then
+                    TRUFFLEHOG_ACTIVITY+=("$file:Suspicious environment variable access")
+                fi
+            fi
+        fi
+    done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.py" -o -name "*.sh" -o -name "*.json" \) -print0 2>/dev/null)
+
+    # Look for trufflehog binary files
+    while IFS= read -r binary_file; do
+        if [[ -f "$binary_file" ]]; then
+            TRUFFLEHOG_ACTIVITY+=("$binary_file:Trufflehog binary found")
+        fi
+    done < <(find "$scan_dir" -name "*trufflehog*" -type f 2>/dev/null)
+}
+
+# Check for Shai-Hulud repositories
+check_shai_hulud_repos() {
+    local scan_dir=$1
+    print_status "$BLUE" "🔍 Checking for Shai-Hulud repositories..."
+
+    while IFS= read -r -d '' git_dir; do
+        local repo_dir
+        repo_dir=$(dirname "$git_dir")
+
+        # Check if this is a repository named shai-hulud
+        local repo_name
+        repo_name=$(basename "$repo_dir")
+        if [[ "$repo_name" == *"shai-hulud"* ]] || [[ "$repo_name" == *"Shai-Hulud"* ]]; then
+            SHAI_HULUD_REPOS+=("$repo_dir:Repository name contains 'Shai-Hulud'")
+        fi
+
+        # Check for GitHub remote URLs containing shai-hulud
+        if [[ -f "$git_dir/config" ]]; then
+            if grep -q "shai-hulud\|Shai-Hulud" "$git_dir/config" 2>/dev/null; then
+                SHAI_HULUD_REPOS+=("$repo_dir:Git remote contains 'Shai-Hulud'")
+            fi
         fi
     done < <(find "$scan_dir" -name ".git" -type d -print0 2>/dev/null)
 }
@@ -265,6 +371,76 @@ generate_report() {
         echo
     fi
 
+    # Report suspicious postinstall hooks
+    if [[ ${#POSTINSTALL_HOOKS[@]} -gt 0 ]]; then
+        print_status "$RED" "🚨 HIGH RISK: Suspicious postinstall hooks detected:"
+        for entry in "${POSTINSTALL_HOOKS[@]}"; do
+            local file_path="${entry%:*}"
+            local hook_info="${entry#*:}"
+            echo "   - Hook: $hook_info"
+            echo "     Found in: $file_path"
+            show_file_preview "$file_path" "Contains suspicious postinstall hook: $hook_info"
+            ((high_risk++))
+        done
+        echo -e "   ${YELLOW}NOTE: Postinstall hooks can execute arbitrary code during package installation.${NC}"
+        echo -e "   ${YELLOW}Review these hooks carefully for malicious behavior.${NC}"
+        echo
+    fi
+
+    # Report Trufflehog activity
+    if [[ ${#TRUFFLEHOG_ACTIVITY[@]} -gt 0 ]]; then
+        print_status "$RED" "🚨 HIGH RISK: Trufflehog/secret scanning activity detected:"
+        for entry in "${TRUFFLEHOG_ACTIVITY[@]}"; do
+            local file_path="${entry%:*}"
+            local activity_info="${entry#*:}"
+            echo "   - Activity: $activity_info"
+            echo "     Found in: $file_path"
+            show_file_preview "$file_path" "Contains secret scanning activity: $activity_info"
+            ((high_risk++))
+        done
+        echo -e "   ${YELLOW}NOTE: Trufflehog is used by attackers to scan for credentials.${NC}"
+        echo -e "   ${YELLOW}Check if these files are part of legitimate security tooling.${NC}"
+        echo
+    fi
+
+    # Report Shai-Hulud repositories
+    if [[ ${#SHAI_HULUD_REPOS[@]} -gt 0 ]]; then
+        print_status "$RED" "🚨 HIGH RISK: Shai-Hulud repositories detected:"
+        for entry in "${SHAI_HULUD_REPOS[@]}"; do
+            local repo_path="${entry%:*}"
+            local repo_info="${entry#*:}"
+            echo "   - Repository: $repo_path"
+            echo "     $repo_info"
+            echo -e "     ${BLUE}┌─ Repository Investigation Commands:${NC}"
+            echo -e "     ${BLUE}│${NC}  cd '$repo_path'"
+            echo -e "     ${BLUE}│${NC}  git log --oneline -10"
+            echo -e "     ${BLUE}│${NC}  git remote -v"
+            echo -e "     ${BLUE}│${NC}  ls -la"
+            echo -e "     ${BLUE}└─${NC}"
+            echo
+            ((high_risk++))
+        done
+        echo -e "   ${YELLOW}NOTE: 'Shai-Hulud' repositories are created by the malware for exfiltration.${NC}"
+        echo -e "   ${YELLOW}These should be deleted immediately after investigation.${NC}"
+        echo
+    fi
+
+    # Report namespace warnings
+    if [[ ${#NAMESPACE_WARNINGS[@]} -gt 0 ]]; then
+        print_status "$YELLOW" "⚠️  MEDIUM RISK: Packages from compromised namespaces:"
+        for entry in "${NAMESPACE_WARNINGS[@]}"; do
+            local file_path="${entry%%:*}"
+            local namespace_info="${entry#*:}"
+            echo "   - Warning: $namespace_info"
+            echo "     Found in: $file_path"
+            show_file_preview "$file_path" "Contains packages from compromised namespace"
+            ((medium_risk++))
+        done
+        echo -e "   ${YELLOW}NOTE: These namespaces have been compromised but specific versions may vary.${NC}"
+        echo -e "   ${YELLOW}Check package versions against known compromise lists.${NC}"
+        echo
+    fi
+
     total_issues=$((high_risk + medium_risk))
 
     # Summary
@@ -311,8 +487,11 @@ main() {
     check_workflow_files "$scan_dir"
     check_file_hashes "$scan_dir"
     check_packages "$scan_dir"
+    check_postinstall_hooks "$scan_dir"
     check_content "$scan_dir"
+    check_trufflehog_activity "$scan_dir"
     check_git_branches "$scan_dir"
+    check_shai_hulud_repos "$scan_dir"
 
     # Generate report
     generate_report
