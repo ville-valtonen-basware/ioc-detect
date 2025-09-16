@@ -160,3 +160,7 @@ Always verify findings manually and take appropriate remediation steps.
 - **Attack Type**: Self-replicating worm using postinstall hooks
 - **Malicious Endpoint**: `https://webhook.site/bb8ca5f6-4175-45d2-b042-fc9ebb8170b7`
 - **Exfiltration Method**: GitHub repositories named "Shai-Hulud"
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
