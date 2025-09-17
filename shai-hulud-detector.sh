@@ -18,7 +18,7 @@ MALICIOUS_HASH="46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09
 
 # Load compromised packages from external file
 # This allows for easier maintenance and updates as new compromised packages are discovered
-# Currently contains 270+ confirmed package versions from the 187+ packages affected by Shai-Hulud
+# Currently contains 540+ confirmed package versions from comprehensive JFrog analysis of Shai-Hulud attack
 load_compromised_packages() {
     local script_dir="$(cd "$(dirname "$0")" && pwd)"
     local packages_file="$script_dir/compromised-packages.txt"
@@ -68,6 +68,12 @@ COMPROMISED_NAMESPACES=(
     "@things-factory"
     "@hestjs"
     "@nstudio"
+    "@basic-ui-components-stc"
+    "@nexe"
+    "@thangved"
+    "@tnf-dev"
+    "@ui-ux-gang"
+    "@yoobic"
 )
 
 # Global arrays to store findings with risk levels
