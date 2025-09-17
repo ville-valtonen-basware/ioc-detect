@@ -16,39 +16,44 @@ NC='\033[0m' # No Color
 # Known malicious file hash
 MALICIOUS_HASH="46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09"
 
-# Compromised packages and their malicious versions (based on updated threat intelligence)
-# Over 187+ packages compromised in the Shai-Hulud worm attack
-# Using array format compatible with older bash versions on macOS
-COMPROMISED_PACKAGES=(
-    # @ctrl namespace - primary targets
-    "@ctrl/tinycolor:4.1.0"
-    "@ctrl/tinycolor:4.1.1"
-    "@ctrl/tinycolor:4.1.2"
-    "@ctrl/deluge:1.2.0"
+# Load compromised packages from external file
+# This allows for easier maintenance and updates as new compromised packages are discovered
+# Currently contains 75+ confirmed packages from the 187+ total affected by Shai-Hulud
+load_compromised_packages() {
+    local script_dir="$(cd "$(dirname "$0")" && pwd)"
+    local packages_file="$script_dir/compromised-packages.txt"
 
-    # Additional compromised packages from latest research
-    "angulartics2:14.1.2"
-    "koa2-swagger-ui:5.11.1"
-    "koa2-swagger-ui:5.11.2"
+    COMPROMISED_PACKAGES=()
 
-    # @nativescript-community namespace
-    "@nativescript-community/push:1.0.0"
-    "@nativescript-community/ui-material-activityindicator:7.2.49"
-    "@nativescript-community/ui-material-bottomnavigationbar:7.2.49"
-    "@nativescript-community/ui-material-bottomsheet:7.2.49"
-    "@nativescript-community/ui-material-button:7.2.49"
-    "@nativescript-community/ui-material-cardview:7.2.49"
-    "@nativescript-community/ui-material-core:7.2.49"
-    "@nativescript-community/ui-material-dialogs:7.2.49"
-    "@nativescript-community/ui-material-floatingactionbutton:7.2.49"
-    "@nativescript-community/ui-material-progress:7.2.49"
-    "@nativescript-community/ui-material-ripple:7.2.49"
-    "@nativescript-community/ui-material-slider:7.2.49"
-    "@nativescript-community/ui-material-snackbar:7.2.49"
-    "@nativescript-community/ui-material-tabs:7.2.49"
-    "@nativescript-community/ui-material-textfield:7.2.49"
-    "@nativescript-community/ui-material-textview:7.2.49"
-)
+    if [[ -f "$packages_file" ]]; then
+        # Read packages from file, skipping comments and empty lines
+        while IFS= read -r line; do
+            # Skip comments and empty lines
+            [[ "$line" =~ ^[[:space:]]*# ]] && continue
+            [[ -z "${line// }" ]] && continue
+
+            # Add valid package:version lines to array
+            if [[ "$line" =~ ^[a-zA-Z@][^:]+:[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+                COMPROMISED_PACKAGES+=("$line")
+            fi
+        done < "$packages_file"
+
+        print_status "$BLUE" "📦 Loaded ${#COMPROMISED_PACKAGES[@]} compromised packages from $packages_file"
+    else
+        # Fallback to embedded list if file not found
+        print_status "$YELLOW" "⚠️  Warning: $packages_file not found, using embedded package list"
+        COMPROMISED_PACKAGES=(
+            # Core compromised packages - fallback list
+            "@ctrl/tinycolor:4.1.0"
+            "@ctrl/tinycolor:4.1.1"
+            "@ctrl/tinycolor:4.1.2"
+            "@ctrl/deluge:1.2.0"
+            "angulartics2:14.1.2"
+            "koa2-swagger-ui:5.11.1"
+            "koa2-swagger-ui:5.11.2"
+        )
+    fi
+}
 
 # Known compromised namespaces - packages in these namespaces may be compromised
 COMPROMISED_NAMESPACES=(
@@ -57,6 +62,12 @@ COMPROMISED_NAMESPACES=(
     "@ngx"
     "@ctrl"
     "@nativescript-community"
+    "@ahmedhfarag"
+    "@operato"
+    "@teselagen"
+    "@things-factory"
+    "@hestjs"
+    "@nstudio"
 )
 
 # Global arrays to store findings with risk levels
@@ -1091,6 +1102,9 @@ generate_report() {
 main() {
     local paranoid_mode=false
     local scan_dir=""
+
+    # Load compromised packages from external file
+    load_compromised_packages
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
