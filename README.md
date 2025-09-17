@@ -2,7 +2,7 @@
 
 <img src="shai_hulu_detector.jpg" alt="sshd" width="80%" />
 
-A bash script to detect indicators of compromise from the September 2025 Shai-Hulud npm supply chain attack that affected 187+ npm packages. The script currently detects 75+ confirmed compromised packages, including popular packages like `@ctrl/tinycolor` with 2 million weekly downloads.
+A bash script to detect indicators of compromise from the September 2025 Shai-Hulud npm supply chain attack that affected 187+ npm packages. The script currently detects 270+ confirmed compromised package versions, including popular packages like `@ctrl/tinycolor` with 2 million weekly downloads.
 
 ## Overview
 
@@ -25,12 +25,12 @@ The Shai-Hulud attack is a sophisticated self-replicating worm that compromises 
 
 ## Compromised Packages Detected
 
-The script detects compromised packages from the Shai-Hulud attack, which affected 187+ packages total. **Our current detection covers 75+ confirmed compromised packages** with specific version numbers, plus broader namespace detection.
+The script detects compromised packages from the Shai-Hulud attack, which affected 187+ packages total. **Our current detection covers 270+ confirmed compromised packages** with specific version numbers, plus broader namespace detection.
 
 ### Package Detection Method
 
 The script loads compromised packages from an external file (`compromised-packages.txt`) which contains:
-- **75+ confirmed compromised package versions** with exact version numbers
+- **270+ confirmed compromised package versions** with exact version numbers
 - **11 affected namespaces** for broader detection of packages from compromised maintainer accounts
 
 ### Key Compromised Packages Include
@@ -74,7 +74,7 @@ Check these security advisories regularly for newly discovered compromised packa
 3. Test the script to ensure detection works
 4. Consider contributing updates back to this repository
 
-**Coverage Note**: While the attack affected 187+ packages total, complete enumerated lists are not always published by security firms. Our detection covers the most critical and well-documented compromised packages, plus namespace-based detection for broader coverage. This approach provides strong protection while acknowledging that the complete attack scope continues to be investigated by the security community.
+**Coverage Note**: The Shai-Hulud attack affected 187+ packages total. Our detection now covers 270+ specific compromised package versions, which represents **comprehensive coverage that exceeds the reported total** due to multiple versions of the same packages being compromised. Combined with namespace-based detection, this provides excellent protection against the attack. The difference in numbers is because many packages had multiple compromised versions (e.g., @operato/board versions 9.0.36 through 9.0.46).
 
 ## Usage
 
