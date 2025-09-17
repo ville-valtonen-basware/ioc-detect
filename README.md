@@ -1,12 +1,37 @@
 # Shai-Hulud NPM Supply Chain Attack Detector
 
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Shell](https://img.shields.io/badge/shell-Bash-blue)](#requirements)
+[![Status](https://img.shields.io/badge/status-Active-success)](../../)
+[![Contributions](https://img.shields.io/badge/contributions-Welcome-orange)](CONTRIBUTING.md)
+[![Last Commit](https://img.shields.io/github/last-commit/Cobenian/shai-hulud-detect)](https://github.com/Cobenian/shai-hulud-detect/commits/main)
+[![Security Tool](https://img.shields.io/badge/type-Security%20Tool-red)](#overview)
+
+
 <img src="shai_hulu_detector.jpg" alt="sshd" width="80%" />
 
-A bash script to detect indicators of compromise from the September 2025 Shai-Hulud npm supply chain attack that affected 187+ npm packages. The script currently detects 270+ confirmed compromised package versions, including popular packages like `@ctrl/tinycolor` with 2 million weekly downloads.
+A bash script to detect indicators of compromise from the September 2025 Shai-Hulud npm supply chain attack that affected 187+ npm packages. This self-replicating worm represents one of the most severe JavaScript supply chain attacks to date, surpassing previous incidents like the chalk/debug compromises, color-name attacks, and eslint package hijacking. The script currently detects 270+ confirmed compromised package versions, including popular packages like `@ctrl/tinycolor` with 2 million weekly downloads.
 
 ## Overview
 
 The Shai-Hulud attack is a sophisticated self-replicating worm that compromises npm packages through stolen maintainer credentials. The malware uses postinstall hooks to propagate and employs Trufflehog to scan for secrets and credentials. This script detects multiple indicators of compromise (IoCs) to help identify if your system has been affected.
+
+## Quick Start
+
+```bash
+# Clone the repository (required for compromised package list)
+git clone https://github.com/username/shai-hulud-detector.git
+cd shai-hulud-detector
+
+# Make the script executable
+chmod +x shai-hulud-detector.sh
+
+# Scan your project for Shai-Hulud indicators
+./shai-hulud-detector.sh /path/to/your/project
+
+# For comprehensive security scanning
+./shai-hulud-detector.sh --paranoid /path/to/your/project
+```
 
 ## What it Detects
 
@@ -76,24 +101,13 @@ Check these security advisories regularly for newly discovered compromised packa
 
 **Coverage Note**: The Shai-Hulud attack affected 187+ packages total. Our detection now covers 270+ specific compromised package versions, which represents **comprehensive coverage that exceeds the reported total** due to multiple versions of the same packages being compromised. Combined with namespace-based detection, this provides excellent protection against the attack. The difference in numbers is because many packages had multiple compromised versions (e.g., @operato/board versions 9.0.36 through 9.0.46).
 
-## Usage
+## Latest Updates
 
-```bash
-# Make the script executable
-chmod +x shai-hulud-detector.sh
+- **2025-09-17**: Expanded to 270+ packages with @operato, @teselagen, @things-factory, @nstudio, and @crowdstrike namespaces
+- **2025-09-16**: Externalized compromised package list to `compromised-packages.txt` for easier maintenance and updates
+- **2025-09-16**: Added paranoid mode with typosquatting detection and network exfiltration pattern analysis
 
-# Core Shai-Hulud detection (recommended for most users)
-./shai-hulud-detector.sh /path/to/your/project
-
-# Paranoid mode with additional security checks
-./shai-hulud-detector.sh --paranoid /path/to/your/project
-
-# Example scanning current directory
-./shai-hulud-detector.sh .
-
-# Show help
-./shai-hulud-detector.sh --help
-```
+*For complete version history, see [CHANGELOG.md](CHANGELOG.md)*
 
 ### Core vs Paranoid Mode
 
@@ -230,6 +244,65 @@ The script now includes:
 - **Attack Type**: Self-replicating worm using postinstall hooks
 - **Malicious Endpoint**: `https://webhook.site/bb8ca5f6-4175-45d2-b042-fc9ebb8170b7`
 - **Exfiltration Method**: GitHub repositories named "Shai-Hulud"
+
+## Contributing
+
+We welcome contributions to improve the Shai-Hulud detector! The community's help is crucial for keeping pace with this evolving threat.
+
+### How to Contribute
+
+#### Adding New Compromised Packages
+
+1. **Fork the repository**
+   ```bash
+   git clone https://github.com/yourusername/shai-hulud-detector.git
+   cd shai-hulud-detector
+   ```
+
+2. **Update the package list**
+   - Add new packages to `compromised-packages.txt` in the format `package_name:version`
+   - Include a source/reference for where you found the compromised package
+   - Group packages by namespace for organization
+
+3. **Test your changes**
+   ```bash
+   # Test that the script loads the new packages
+   ./shai-hulud-detector.sh test-cases/clean-project
+
+   # Run all test cases to ensure nothing breaks
+   ./shai-hulud-detector.sh test-cases/infected-project
+   ./shai-hulud-detector.sh test-cases/mixed-project
+   ```
+
+4. **Submit a Pull Request**
+   - Create a descriptive PR title (e.g., "Add @example/package compromised versions")
+   - Include details about the source of the information
+   - Reference any security advisories or reports
+   - Explain any version patterns or attack details
+
+#### Other Contributions
+
+- **Bug fixes**: Report and fix issues with detection accuracy
+- **New IoCs**: Add detection for additional indicators of compromise
+- **Documentation**: Improve clarity and add examples
+- **Test cases**: Add new test scenarios for edge cases
+
+### Contribution Guidelines
+
+- **Verify sources**: Only add packages confirmed by reputable security firms
+- **Test thoroughly**: Ensure changes don't break existing functionality
+- **Document changes**: Update relevant documentation and changelog
+- **Follow patterns**: Match existing code style and organization
+- **Security first**: Never include actual malicious code in test cases
+
+### Reporting New Compromised Packages
+
+If you can't submit a PR, you can still help by reporting new compromised packages:
+
+1. Open an issue with the title "New compromised package: [package-name]"
+2. Include the package name, version, and source of information
+3. Provide links to security advisories or reports
+4. We'll review and add verified packages to the detection list
 
 ## License
 
