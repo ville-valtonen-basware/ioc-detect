@@ -20,9 +20,16 @@ MALICIOUS_HASH="46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09
 # Over 187+ packages compromised in the Shai-Hulud worm attack
 # Using array format compatible with older bash versions on macOS
 COMPROMISED_PACKAGES=(
-    # @ctrl namespace
+    # @ctrl namespace - primary targets
     "@ctrl/tinycolor:4.1.0"
+    "@ctrl/tinycolor:4.1.1"
+    "@ctrl/tinycolor:4.1.2"
     "@ctrl/deluge:1.2.0"
+
+    # Additional compromised packages from latest research
+    "angulartics2:14.1.2"
+    "koa2-swagger-ui:5.11.1"
+    "koa2-swagger-ui:5.11.2"
 
     # @nativescript-community namespace
     "@nativescript-community/push:1.0.0"
@@ -63,6 +70,7 @@ TRUFFLEHOG_ACTIVITY=()
 SHAI_HULUD_REPOS=()
 NAMESPACE_WARNINGS=()
 LOW_RISK_FINDINGS=()
+INTEGRITY_ISSUES=()
 
 # Usage function
 usage() {
@@ -387,10 +395,10 @@ check_trufflehog_activity() {
     done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.py" -o -name "*.sh" -o -name "*.json" \) -print0 2>/dev/null)
 }
 
-# Check for Shai-Hulud repositories
+# Check for Shai-Hulud repositories and migration patterns
 check_shai_hulud_repos() {
     local scan_dir=$1
-    print_status "$BLUE" "🔍 Checking for Shai-Hulud repositories..."
+    print_status "$BLUE" "🔍 Checking for Shai-Hulud repositories and migration patterns..."
 
     while IFS= read -r -d '' git_dir; do
         local repo_dir
@@ -403,13 +411,70 @@ check_shai_hulud_repos() {
             SHAI_HULUD_REPOS+=("$repo_dir:Repository name contains 'Shai-Hulud'")
         fi
 
+        # Check for migration pattern repositories (new IoC)
+        if [[ "$repo_name" == *"-migration"* ]]; then
+            SHAI_HULUD_REPOS+=("$repo_dir:Repository name contains migration pattern")
+        fi
+
         # Check for GitHub remote URLs containing shai-hulud
         if [[ -f "$git_dir/config" ]]; then
             if grep -q "shai-hulud\|Shai-Hulud" "$git_dir/config" 2>/dev/null; then
                 SHAI_HULUD_REPOS+=("$repo_dir:Git remote contains 'Shai-Hulud'")
             fi
         fi
+
+        # Check for double base64-encoded data.json (new IoC)
+        if [[ -f "$repo_dir/data.json" ]]; then
+            local content_sample
+            content_sample=$(head -5 "$repo_dir/data.json" 2>/dev/null)
+            if [[ "$content_sample" == *"eyJ"* ]] && [[ "$content_sample" == *"=="* ]]; then
+                SHAI_HULUD_REPOS+=("$repo_dir:Contains suspicious data.json (possible base64-encoded credentials)")
+            fi
+        fi
     done < <(find "$scan_dir" -name ".git" -type d -print0 2>/dev/null)
+}
+
+# Check package-lock.json and yarn.lock files for integrity issues
+check_package_integrity() {
+    local scan_dir=$1
+    print_status "$BLUE" "🔍 Checking package lock files for integrity issues..."
+
+    # Check package-lock.json files
+    while IFS= read -r -d '' lockfile; do
+        if [[ -f "$lockfile" && -r "$lockfile" ]]; then
+            # Look for compromised packages in lockfiles
+            for package_info in "${COMPROMISED_PACKAGES[@]}"; do
+                local package_name="${package_info%:*}"
+                local malicious_version="${package_info#*:}"
+
+                if grep -q "\"$package_name\"" "$lockfile" 2>/dev/null; then
+                    local found_version
+                    found_version=$(grep -A5 "\"$package_name\"" "$lockfile" | grep '"version":' | head -1 | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+"' | tr -d '"')
+                    if [[ "$found_version" == "$malicious_version" ]]; then
+                        INTEGRITY_ISSUES+=("$lockfile:Compromised package in lockfile: $package_name@$malicious_version")
+                    fi
+                fi
+            done
+
+            # Check for suspicious integrity hash patterns (may indicate tampering)
+            local suspicious_hashes
+            suspicious_hashes=$(grep -c '"integrity": "sha[0-9]\+-[A-Za-z0-9+/=]*"' "$lockfile" 2>/dev/null || echo "0")
+
+            # Check for recently modified lockfiles with @ctrl packages (potential worm activity)
+            if grep -q "@ctrl" "$lockfile" 2>/dev/null; then
+                local file_age
+                file_age=$(stat -f "%m" "$lockfile" 2>/dev/null || echo "0")
+                local current_time
+                current_time=$(date +%s)
+                local age_diff=$((current_time - file_age))
+
+                # Flag if lockfile with @ctrl packages was modified in the last 30 days
+                if [[ $age_diff -lt 2592000 ]]; then  # 30 days in seconds
+                    INTEGRITY_ISSUES+=("$lockfile:Recently modified lockfile contains @ctrl packages (potential worm activity)")
+                fi
+            fi
+        fi
+    done < <(find "$scan_dir" -name "package-lock.json" -o -name "yarn.lock" -print0 2>/dev/null)
 }
 
 # Generate final report
@@ -616,6 +681,22 @@ generate_report() {
         echo
     fi
 
+    # Report package integrity issues
+    if [[ ${#INTEGRITY_ISSUES[@]} -gt 0 ]]; then
+        print_status "$YELLOW" "⚠️  MEDIUM RISK: Package integrity issues detected:"
+        for entry in "${INTEGRITY_ISSUES[@]}"; do
+            local file_path="${entry%%:*}"
+            local issue_info="${entry#*:}"
+            echo "   - Issue: $issue_info"
+            echo "     Found in: $file_path"
+            show_file_preview "$file_path" "Package integrity issue: $issue_info"
+            ((medium_risk++))
+        done
+        echo -e "   ${YELLOW}NOTE: These issues may indicate tampering with package dependencies.${NC}"
+        echo -e "   ${YELLOW}Verify package versions and regenerate lockfiles if necessary.${NC}"
+        echo
+    fi
+
     total_issues=$((high_risk + medium_risk))
     local low_risk_count=${#LOW_RISK_FINDINGS[@]}
 
@@ -691,6 +772,7 @@ main() {
     check_trufflehog_activity "$scan_dir"
     check_git_branches "$scan_dir"
     check_shai_hulud_repos "$scan_dir"
+    check_package_integrity "$scan_dir"
 
     # Generate report
     generate_report

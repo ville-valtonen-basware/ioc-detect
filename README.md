@@ -120,6 +120,7 @@ The script performs these comprehensive checks:
 6. **Trufflehog Activity Detection**: Looks for evidence of credential scanning tools and secret harvesting
 7. **Git Analysis**: Checks for suspicious branch names and repository names
 8. **Repository Detection**: Identifies "Shai-Hulud" repositories used for data exfiltration
+9. **Package Integrity Checking**: Analyzes package-lock.json and yarn.lock files for compromised packages and suspicious modifications
 
 ## Limitations
 
@@ -128,6 +129,7 @@ The script performs these comprehensive checks:
 - **False Positives**: Legitimate use of webhook.site, Trufflehog for security, or postinstall hooks will trigger alerts
 - **Worm Evolution**: The self-replicating nature means new variants may emerge with different signatures
 - **Coverage**: May not detect all 187+ compromised packages or future iterations of the attack
+- **Package Integrity**: Relies on lockfile analysis to detect compromised packages, but sophisticated attacks may evade detection
 
 ## Contributing
 
@@ -141,6 +143,22 @@ This script is for **detection only**. It does not:
 - Prevent future attacks
 
 Always verify findings manually and take appropriate remediation steps.
+
+## Latest Threat Intelligence Updates
+
+### s1ngularity/Nx Connection (September 2025)
+Recent investigations have revealed a potential connection between the Shai-Hulud campaign and the Nx package ecosystem:
+- **Repository Migration Patterns**: Attackers are using repositories with "-migration" suffixes to distribute malicious packages
+- **Advanced Package Integrity Checks**: Double base64-encoded `data.json` files have been discovered in compromised package versions
+- **Additional Compromised Versions**: `tinycolor@4.1.1` and `tinycolor@4.1.2` have been identified as compromised
+- **New Package Targets**: `angulartics2` and `koa2-swagger-ui` packages have been added to the compromised list
+
+### Enhanced Detection Capabilities
+The script now includes:
+- Repository migration pattern detection
+- Package-lock.json integrity verification
+- Context-aware Trufflehog detection to reduce false positives
+- Risk level classification (HIGH/MEDIUM/LOW) for better triage
 
 ## References
 
