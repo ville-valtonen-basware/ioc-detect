@@ -1,6 +1,6 @@
 # Shai-Hulud NPM Supply Chain Attack - Compromised Packages List
 #
-# This file contains 75+ confirmed compromised packages from the 187+ total affected
+# This file contains 270+ confirmed compromised package versions from the 187+ packages affected
 # The Shai-Hulud attack was self-replicating, so new compromised packages may still be discovered
 #
 # Sources: StepSecurity, Wiz.io, Semgrep, JFrog security advisories
@@ -25,12 +25,19 @@
 @ctrl/tinycolor:4.1.1
 @ctrl/tinycolor:4.1.2
 @ctrl/deluge:1.2.0
+@ctrl/deluge:7.2.1
+@ctrl/deluge:7.2.2
+@ctrl/golang-template:1.4.2
+@ctrl/golang-template:1.4.3
+@ctrl/magnet-link:4.0.3
+@ctrl/magnet-link:4.0.4
 
 # @ahmedhfarag namespace
 @ahmedhfarag/ngx-perfect-scrollbar:20.0.20
 @ahmedhfarag/ngx-virtual-scroller:4.0.4
 
 # @art-ws namespace - 16+ packages
+@art-ws/common:2.0.22
 @art-ws/common:2.0.28
 @art-ws/config-eslint:2.0.4
 @art-ws/config-eslint:2.0.5
@@ -62,27 +69,217 @@
 # @crowdstrike namespace - 25+ packages
 @crowdstrike/commitlint:8.1.1
 @crowdstrike/commitlint:8.1.2
-@crowdstrike/falcon-shoelace:1.0.1
+@crowdstrike/falcon-shoelace:0.4.1
+@crowdstrike/falcon-shoelace:0.4.2
+@crowdstrike/foundry-js:0.19.1
+@crowdstrike/foundry-js:0.19.2
+@crowdstrike/glide-core:0.34.2
+@crowdstrike/glide-core:0.34.3
+@crowdstrike/logscale-dashboard:1.205.1
+@crowdstrike/logscale-dashboard:1.205.2
+@crowdstrike/logscale-file-editor:1.205.1
+@crowdstrike/logscale-file-editor:1.205.2
+@crowdstrike/logscale-parser-edit:1.205.1
+@crowdstrike/logscale-parser-edit:1.205.2
+@crowdstrike/logscale-search:1.205.1
+@crowdstrike/logscale-search:1.205.2
+@crowdstrike/tailwind-toucan-base:5.0.1
+@crowdstrike/tailwind-toucan-base:5.0.2
 
 # @hestjs namespace
 @hestjs/core:1.0.1
 @hestjs/core:1.0.2
 
-# @nstudio namespace
-@nstudio/angular:18.1.1
-@nstudio/angular:18.1.2
+# @nstudio namespace - multiple packages with various versions
+@nstudio/angular:20.0.4
+@nstudio/angular:20.0.5
+@nstudio/angular:20.0.6
+@nstudio/focus:20.0.4
+@nstudio/focus:20.0.5
+@nstudio/focus:20.0.6
+@nstudio/nativescript-checkbox:2.0.6
+@nstudio/nativescript-checkbox:2.0.7
+@nstudio/nativescript-checkbox:2.0.8
+@nstudio/nativescript-checkbox:2.0.9
+@nstudio/nativescript-loading-indicator:5.0.1
+@nstudio/nativescript-loading-indicator:5.0.2
+@nstudio/nativescript-loading-indicator:5.0.3
+@nstudio/nativescript-loading-indicator:5.0.4
+@nstudio/ui-collectionview:5.1.11
+@nstudio/ui-collectionview:5.1.12
+@nstudio/ui-collectionview:5.1.13
+@nstudio/ui-collectionview:5.1.14
+@nstudio/web-angular:20.0.4
+@nstudio/web:20.0.4
+@nstudio/xplat-utils:20.0.5
+@nstudio/xplat-utils:20.0.6
 
-# @operato namespace
-@operato/board:1.0.1
-@operato/board:1.0.2
+# @operato namespace - multiple packages with 9.0.x versions
+@operato/board:9.0.36
+@operato/board:9.0.37
+@operato/board:9.0.38
+@operato/board:9.0.39
+@operato/board:9.0.40
+@operato/board:9.0.41
+@operato/board:9.0.42
+@operato/board:9.0.43
+@operato/board:9.0.44
+@operato/board:9.0.45
+@operato/board:9.0.46
+@operato/data-grist:9.0.29
+@operato/data-grist:9.0.35
+@operato/data-grist:9.0.36
+@operato/data-grist:9.0.37
+@operato/graphql:9.0.22
+@operato/graphql:9.0.35
+@operato/graphql:9.0.36
+@operato/graphql:9.0.37
+@operato/graphql:9.0.38
+@operato/graphql:9.0.39
+@operato/graphql:9.0.40
+@operato/graphql:9.0.41
+@operato/graphql:9.0.42
+@operato/graphql:9.0.43
+@operato/graphql:9.0.44
+@operato/graphql:9.0.45
+@operato/graphql:9.0.46
+@operato/headroom:9.0.2
+@operato/headroom:9.0.35
+@operato/headroom:9.0.36
+@operato/headroom:9.0.37
+@operato/help:9.0.35
+@operato/help:9.0.36
+@operato/help:9.0.37
+@operato/help:9.0.38
+@operato/help:9.0.39
+@operato/help:9.0.40
+@operato/help:9.0.41
+@operato/help:9.0.42
+@operato/help:9.0.43
+@operato/help:9.0.44
+@operato/help:9.0.45
+@operato/help:9.0.46
+@operato/i18n:9.0.35
+@operato/i18n:9.0.36
+@operato/i18n:9.0.37
+@operato/input:9.0.27
+@operato/input:9.0.35
+@operato/input:9.0.36
+@operato/input:9.0.37
+@operato/input:9.0.38
+@operato/input:9.0.39
+@operato/input:9.0.40
+@operato/input:9.0.41
+@operato/input:9.0.42
+@operato/input:9.0.43
+@operato/input:9.0.44
+@operato/input:9.0.45
+@operato/input:9.0.46
+@operato/layout:9.0.35
+@operato/layout:9.0.36
+@operato/layout:9.0.37
+@operato/popup:9.0.22
+@operato/popup:9.0.35
+@operato/popup:9.0.36
+@operato/popup:9.0.37
+@operato/popup:9.0.38
+@operato/popup:9.0.39
+@operato/popup:9.0.40
+@operato/popup:9.0.41
+@operato/popup:9.0.42
+@operato/popup:9.0.43
+@operato/popup:9.0.44
+@operato/popup:9.0.45
+@operato/popup:9.0.46
+@operato/pull-to-refresh:9.0.36
+@operato/pull-to-refresh:9.0.37
+@operato/pull-to-refresh:9.0.38
+@operato/pull-to-refresh:9.0.39
+@operato/pull-to-refresh:9.0.40
+@operato/pull-to-refresh:9.0.41
+@operato/pull-to-refresh:9.0.42
+@operato/shell:9.0.22
+@operato/shell:9.0.35
+@operato/shell:9.0.36
+@operato/shell:9.0.37
+@operato/shell:9.0.38
+@operato/shell:9.0.39
+@operato/styles:9.0.2
+@operato/styles:9.0.35
+@operato/styles:9.0.36
+@operato/styles:9.0.37
+@operato/utils:9.0.22
+@operato/utils:9.0.35
+@operato/utils:9.0.36
+@operato/utils:9.0.37
+@operato/utils:9.0.38
+@operato/utils:9.0.39
+@operato/utils:9.0.40
+@operato/utils:9.0.41
+@operato/utils:9.0.42
+@operato/utils:9.0.43
+@operato/utils:9.0.44
+@operato/utils:9.0.45
+@operato/utils:9.0.46
 
-# @teselagen namespace
-@teselagen/bio-parsers:15.1.1
-@teselagen/bio-parsers:15.1.2
+# @teselagen namespace - multiple packages with 0.x versions
+@teselagen/bio-parsers:0.4.29
+@teselagen/bio-parsers:0.4.30
+@teselagen/bounce-loader:0.3.16
+@teselagen/bounce-loader:0.3.17
+@teselagen/file-utils:0.3.21
+@teselagen/file-utils:0.3.22
+@teselagen/liquibase-tools:0.4.1
+@teselagen/ove:0.7.39
+@teselagen/ove:0.7.40
+@teselagen/range-utils:0.3.14
+@teselagen/range-utils:0.3.15
+@teselagen/react-list:0.8.19
+@teselagen/react-list:0.8.20
+@teselagen/react-table:6.10.19
+@teselagen/react-table:6.10.20
+@teselagen/react-table:6.10.21
+@teselagen/react-table:6.10.22
+@teselagen/sequence-utils:0.3.33
+@teselagen/sequence-utils:0.3.34
+@teselagen/ui:0.9.9
+@teselagen/ui:0.9.10
 
-# @things-factory namespace
-@things-factory/attachment-base:1.0.1
-@things-factory/attachment-base:1.0.2
+# @things-factory namespace - multiple packages with 9.0.x versions
+@things-factory/attachment-base:9.0.43
+@things-factory/attachment-base:9.0.44
+@things-factory/attachment-base:9.0.45
+@things-factory/attachment-base:9.0.46
+@things-factory/attachment-base:9.0.47
+@things-factory/attachment-base:9.0.48
+@things-factory/attachment-base:9.0.49
+@things-factory/attachment-base:9.0.50
+@things-factory/auth-base:9.0.43
+@things-factory/auth-base:9.0.44
+@things-factory/auth-base:9.0.45
+@things-factory/email-base:9.0.42
+@things-factory/email-base:9.0.43
+@things-factory/email-base:9.0.44
+@things-factory/email-base:9.0.45
+@things-factory/email-base:9.0.46
+@things-factory/email-base:9.0.47
+@things-factory/email-base:9.0.48
+@things-factory/email-base:9.0.49
+@things-factory/email-base:9.0.50
+@things-factory/email-base:9.0.51
+@things-factory/email-base:9.0.52
+@things-factory/email-base:9.0.53
+@things-factory/email-base:9.0.54
+@things-factory/env:9.0.42
+@things-factory/env:9.0.43
+@things-factory/env:9.0.44
+@things-factory/env:9.0.45
+@things-factory/integration-base:9.0.43
+@things-factory/integration-base:9.0.44
+@things-factory/integration-base:9.0.45
+@things-factory/integration-marketplace:9.0.43
+@things-factory/integration-marketplace:9.0.44
+@things-factory/integration-marketplace:9.0.45
 
 # @nativescript-community namespace - 40+ packages
 @nativescript-community/push:1.0.0
