@@ -10,7 +10,7 @@
 
 <img src="shai_hulu_detector.jpg" alt="sshd" width="80%" />
 
-A bash script to detect indicators of compromise from the September 2025 Shai-Hulud npm supply chain attack that affected 187+ npm packages. This self-replicating worm represents one of the most severe JavaScript supply chain attacks to date, surpassing previous incidents like the chalk/debug compromises, color-name attacks, and eslint package hijacking. The script currently detects 270+ confirmed compromised package versions, including popular packages like `@ctrl/tinycolor` with 2 million weekly downloads.
+A bash script to detect indicators of compromise from the September 2025 Shai-Hulud npm supply chain attack that affected 517+ npm packages. This self-replicating worm represents one of the most severe JavaScript supply chain attacks to date, surpassing previous incidents like the chalk/debug compromises, color-name attacks, and eslint package hijacking. The script currently detects 540+ confirmed compromised package versions, including popular packages like `@ctrl/tinycolor` with 2 million weekly downloads.
 
 ## Overview
 
@@ -38,7 +38,7 @@ chmod +x shai-hulud-detector.sh
 ### High Risk Indicators
 - **Malicious workflow files**: `shai-hulud-workflow.yml` files in `.github/workflows/`
 - **Known malicious file hashes**: Files matching SHA-256 hash `46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09`
-- **Compromised package versions**: Specific versions of 187+ packages known to be compromised
+- **Compromised package versions**: Specific versions of 517+ packages known to be compromised
 - **Suspicious postinstall hooks**: Package.json files with postinstall scripts containing curl, wget, or eval commands
 - **Trufflehog activity**: Files containing trufflehog references or credential scanning patterns
 - **Shai-Hulud repositories**: Git repositories named "Shai-Hulud" (used for data exfiltration)
@@ -50,12 +50,12 @@ chmod +x shai-hulud-detector.sh
 
 ## Compromised Packages Detected
 
-The script detects compromised packages from the Shai-Hulud attack, which affected 187+ packages total. **Our current detection covers 270+ confirmed compromised packages** with specific version numbers, plus broader namespace detection.
+The script detects compromised packages from the Shai-Hulud attack, which affected 517+ packages total. **Our current detection covers 540+ confirmed compromised packages** with specific version numbers, plus broader namespace detection.
 
 ### Package Detection Method
 
 The script loads compromised packages from an external file (`compromised-packages.txt`) which contains:
-- **270+ confirmed compromised package versions** with exact version numbers
+- **540+ confirmed compromised package versions** with exact version numbers
 - **11 affected namespaces** for broader detection of packages from compromised maintainer accounts
 
 ### Key Compromised Packages Include
@@ -99,13 +99,14 @@ Check these security advisories regularly for newly discovered compromised packa
 3. Test the script to ensure detection works
 4. Consider contributing updates back to this repository
 
-**Coverage Note**: The Shai-Hulud attack affected 187+ packages total. Our detection now covers 270+ specific compromised package versions, which represents **comprehensive coverage that exceeds the reported total** due to multiple versions of the same packages being compromised. Combined with namespace-based detection, this provides excellent protection against the attack. The difference in numbers is because many packages had multiple compromised versions (e.g., @operato/board versions 9.0.36 through 9.0.46).
+**Coverage Note**: The Shai-Hulud attack affected 517+ packages total. Our detection now covers 540+ specific compromised package versions, which represents **comprehensive coverage** of the known compromised packages. Combined with namespace-based detection, this provides excellent protection against the attack. The higher number reflects multiple compromised versions of the same packages (e.g., @operato/board versions 9.0.36 through 9.0.46).
 
 ## Latest Updates
 
-- **2025-09-17**: Expanded to 270+ packages with @operato, @teselagen, @things-factory, @nstudio, and @crowdstrike namespaces
-- **2025-09-16**: Externalized compromised package list to `compromised-packages.txt` for easier maintenance and updates
-- **2025-09-16**: Added paranoid mode with typosquatting detection and network exfiltration pattern analysis
+- **2025-09-17 v1.3.0**: **Complete JFrog integration** - Added 273 additional packages (540+ total) with comprehensive coverage of the complete JFrog 517-package analysis. Added 6 new namespaces: @yoobic, @basic-ui-components-stc, @nexe, @thangved, @tnf-dev, and @ui-ux-gang
+- **2025-09-17 v1.2.0**: Expanded to 270+ packages with @operato, @teselagen, @things-factory, @nstudio, and @crowdstrike namespaces
+- **2025-09-16 v1.1.0**: Externalized compromised package list to `compromised-packages.txt` for easier maintenance and updates
+- **2025-09-16 v1.1.0**: Added paranoid mode with typosquatting detection and network exfiltration pattern analysis
 
 *For complete version history, see [CHANGELOG.md](CHANGELOG.md)*
 
@@ -177,7 +178,7 @@ The repository includes test cases to validate the script:
 
 The script performs these comprehensive checks:
 
-1. **Package Database Loading**: Loads the complete list of 187+ compromised packages from `compromised-packages.txt`
+1. **Package Database Loading**: Loads the complete list of 517+ compromised packages from `compromised-packages.txt`
 2. **Workflow Detection**: Searches for `shai-hulud-workflow.yml` files in `.github/workflows/`
 3. **Hash Verification**: Calculates SHA-256 hashes of JavaScript/JSON files against known malicious hashes
 4. **Package Analysis**: Parses `package.json` files for specific compromised versions and affected namespaces
@@ -194,7 +195,7 @@ The script performs these comprehensive checks:
 - **Package Versions**: Detects specific compromised versions and namespace warnings, but new compromised versions may not be detected
 - **False Positives**: Legitimate use of webhook.site, Trufflehog for security, or postinstall hooks will trigger alerts
 - **Worm Evolution**: The self-replicating nature means new variants may emerge with different signatures
-- **Coverage**: May not detect all 187+ compromised packages or future iterations of the attack
+- **Coverage**: May not detect all 517+ compromised packages or future iterations of the attack
 - **Package Integrity**: Relies on lockfile analysis to detect compromised packages, but sophisticated attacks may evade detection
 
 ## Contributing
@@ -240,7 +241,7 @@ The script now includes:
 
 ### Attack Details
 - **Initial Discovery**: September 15, 2025
-- **Scale**: 187+ packages compromised
+- **Scale**: 517+ packages compromised
 - **Attack Type**: Self-replicating worm using postinstall hooks
 - **Malicious Endpoint**: `https://webhook.site/bb8ca5f6-4175-45d2-b042-fc9ebb8170b7`
 - **Exfiltration Method**: GitHub repositories named "Shai-Hulud"

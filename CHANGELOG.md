@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2025-09-17
+
+### Added
+- **Complete JFrog integration**: Added comprehensive package list from JFrog security analysis
+- Added 273 additional compromised package versions (540+ total)
+- 6 new compromised namespaces: @basic-ui-components-stc, @nexe, @thangved, @tnf-dev, @ui-ux-gang, @yoobic
+- Expanded coverage includes packages missed in previous analyses
+
+### Changed
+- Updated package detection from 270+ to 540+ compromised package versions
+- Achieved comprehensive coverage of the complete JFrog 517-package analysis
+- Updated all documentation references to reflect true attack scope (517+ packages)
+- Enhanced namespace detection with 6 additional namespace patterns
+
+### Security
+- Includes all packages identified in comprehensive security research
+- Provides industry-leading coverage against this supply chain attack
+
 ## [1.2.0] - 2025-09-17
 
 ### Added
