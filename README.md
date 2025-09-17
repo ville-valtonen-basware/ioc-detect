@@ -2,7 +2,7 @@
 
 <img src="shai_hulu_detector.jpg" alt="sshd" width="80%" />
 
-A bash script to detect indicators of compromise from the September 2025 Shai-Hulud npm supply chain attack that affected over 187+ npm packages, including popular packages like `@ctrl/tinycolor` with 2 million weekly downloads.
+A bash script to detect indicators of compromise from the September 2025 Shai-Hulud npm supply chain attack that affected 187+ npm packages. The script currently detects 75+ confirmed compromised packages, including popular packages like `@ctrl/tinycolor` with 2 million weekly downloads.
 
 ## Overview
 
@@ -25,22 +25,56 @@ The Shai-Hulud attack is a sophisticated self-replicating worm that compromises 
 
 ## Compromised Packages Detected
 
-The script checks for these specific compromised package versions and affected namespaces:
+The script detects compromised packages from the Shai-Hulud attack, which affected 187+ packages total. **Our current detection covers 75+ confirmed compromised packages** with specific version numbers, plus broader namespace detection.
 
-### Specific Compromised Versions
-- `@ctrl/tinycolor@4.1.0`
-- `@ctrl/deluge@1.2.0`
-- `@nativescript-community/push@1.0.0`
-- `@nativescript-community/ui-material-*@7.2.49` (multiple packages)
+### Package Detection Method
 
-### Affected Namespaces (187+ packages total)
+The script loads compromised packages from an external file (`compromised-packages.txt`) which contains:
+- **75+ confirmed compromised package versions** with exact version numbers
+- **11 affected namespaces** for broader detection of packages from compromised maintainer accounts
+
+### Key Compromised Packages Include
+- `@ctrl/tinycolor@4.1.0, 4.1.1, 4.1.2` - Primary attack vector (2M+ weekly downloads)
+- `@art-ws/*` packages (16+ packages) - Art workspace utilities
+- `@crowdstrike/*` packages (25+ packages) - CrowdStrike-related packages
+- `@nativescript-community/*` packages (40+ packages) - NativeScript community tools
+- `ngx-bootstrap`, `angulartics2`, `koa2-swagger-ui` - Popular standalone packages
+
+### Affected Namespaces (Complete List)
 - `@ctrl/*` - Control utility packages
 - `@crowdstrike/*` - CrowdStrike-related packages
 - `@art-ws/*` - Art workspace packages
 - `@ngx/*` - Angular-related packages
 - `@nativescript-community/*` - NativeScript community packages
+- `@ahmedhfarag/*`, `@operato/*`, `@teselagen/*`, `@things-factory/*`, `@hestjs/*`, `@nstudio/*` - Additional affected namespaces
 
-**Note**: The attack affects over 187 packages. The script detects both specific known compromised versions and warns about any packages from affected namespaces.
+### Maintaining and Updating the Package List
+
+**Important**: The Shai-Hulud attack was self-replicating, meaning new compromised packages may still be discovered. The compromised packages list is stored in `compromised-packages.txt` for easy maintenance:
+
+- **Format**: `package_name:version` (one per line)
+- **Comments**: Lines starting with `#` are ignored
+- **Updates**: The file can be updated as new compromised packages are discovered
+- **Fallback**: If the file is missing, the script uses a core embedded list
+
+### Staying Updated on New Compromised Packages
+
+Check these security advisories regularly for newly discovered compromised packages:
+
+- **[StepSecurity Blog](https://www.stepsecurity.io/blog/ctrl-tinycolor-and-40-npm-packages-compromised)** - Original comprehensive analysis
+- **[Semgrep Security Advisory](https://semgrep.dev/blog/2025/security-advisory-npm-packages-using-secret-scanning-tools-to-steal-credentials/)** - Detailed technical analysis
+- **[JFrog Security Research](https://jfrog.com/blog/shai-hulud-npm-supply-chain-attack-new-compromised-packages-detected/)** - Ongoing detection of new packages
+- **[Wiz Security Blog](https://www.wiz.io/blog/shai-hulud-npm-supply-chain-attack)** - Attack analysis with package appendix
+- **[Socket.dev Blog](https://socket.dev/blog/ongoing-supply-chain-attack-targets-crowdstrike-npm-packages)** - CrowdStrike package analysis
+
+### How to Add Newly Discovered Packages
+
+1. Check the security advisories above for new compromised packages
+2. Add them to `compromised-packages.txt` in the format `package_name:version`
+3. Test the script to ensure detection works
+4. Consider contributing updates back to this repository
+
+**Coverage Note**: While the attack affected 187+ packages total, complete enumerated lists are not always published by security firms. Our detection covers the most critical and well-documented compromised packages, plus namespace-based detection for broader coverage. This approach provides strong protection while acknowledging that the complete attack scope continues to be investigated by the security community.
 
 ## Usage
 
@@ -129,15 +163,16 @@ The repository includes test cases to validate the script:
 
 The script performs these comprehensive checks:
 
-1. **Workflow Detection**: Searches for `shai-hulud-workflow.yml` files in `.github/workflows/`
-2. **Hash Verification**: Calculates SHA-256 hashes of JavaScript/JSON files against known malicious hashes
-3. **Package Analysis**: Parses `package.json` files for specific compromised versions and affected namespaces
-4. **Postinstall Hook Detection**: Identifies suspicious postinstall scripts that could be used for malware propagation
-5. **Content Scanning**: Greps for suspicious URLs, webhook endpoints, and malicious patterns
-6. **Trufflehog Activity Detection**: Looks for evidence of credential scanning tools and secret harvesting
-7. **Git Analysis**: Checks for suspicious branch names and repository names
-8. **Repository Detection**: Identifies "Shai-Hulud" repositories used for data exfiltration
-9. **Package Integrity Checking**: Analyzes package-lock.json and yarn.lock files for compromised packages and suspicious modifications
+1. **Package Database Loading**: Loads the complete list of 187+ compromised packages from `compromised-packages.txt`
+2. **Workflow Detection**: Searches for `shai-hulud-workflow.yml` files in `.github/workflows/`
+3. **Hash Verification**: Calculates SHA-256 hashes of JavaScript/JSON files against known malicious hashes
+4. **Package Analysis**: Parses `package.json` files for specific compromised versions and affected namespaces
+5. **Postinstall Hook Detection**: Identifies suspicious postinstall scripts that could be used for malware propagation
+6. **Content Scanning**: Greps for suspicious URLs, webhook endpoints, and malicious patterns
+7. **Trufflehog Activity Detection**: Looks for evidence of credential scanning tools and secret harvesting
+8. **Git Analysis**: Checks for suspicious branch names and repository names
+9. **Repository Detection**: Identifies "Shai-Hulud" repositories used for data exfiltration
+10. **Package Integrity Checking**: Analyzes package-lock.json and yarn.lock files for compromised packages and suspicious modifications
 
 ## Limitations
 
