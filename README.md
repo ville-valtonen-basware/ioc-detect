@@ -48,15 +48,32 @@ The script checks for these specific compromised package versions and affected n
 # Make the script executable
 chmod +x shai-hulud-detector.sh
 
-# Scan a single project
+# Core Shai-Hulud detection (recommended for most users)
 ./shai-hulud-detector.sh /path/to/your/project
 
-# Scan your entire projects directory
-./shai-hulud-detector.sh /path/to/projects
+# Paranoid mode with additional security checks
+./shai-hulud-detector.sh --paranoid /path/to/your/project
 
 # Example scanning current directory
 ./shai-hulud-detector.sh .
+
+# Show help
+./shai-hulud-detector.sh --help
 ```
+
+### Core vs Paranoid Mode
+
+**Core Mode (Default)**
+- Focuses specifically on Shai-Hulud attack indicators
+- Recommended for most users checking for this specific threat
+- Clean, focused output with minimal false positives
+
+**Paranoid Mode (`--paranoid`)**
+- Includes all core Shai-Hulud detection PLUS additional security checks
+- Adds typosquatting detection and network exfiltration pattern analysis
+- ⚠️ **Important**: Paranoid features are general security tools, not specific to Shai-Hulud
+- May produce more false positives from legitimate code
+- Useful for comprehensive security auditing
 
 ## Requirements
 

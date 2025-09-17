@@ -71,11 +71,20 @@ SHAI_HULUD_REPOS=()
 NAMESPACE_WARNINGS=()
 LOW_RISK_FINDINGS=()
 INTEGRITY_ISSUES=()
+TYPOSQUATTING_WARNINGS=()
+NETWORK_EXFILTRATION_WARNINGS=()
 
 # Usage function
 usage() {
-    echo "Usage: $0 <directory_to_scan>"
-    echo "Example: $0 /path/to/your/project"
+    echo "Usage: $0 [--paranoid] <directory_to_scan>"
+    echo
+    echo "OPTIONS:"
+    echo "  --paranoid    Enable additional security checks (typosquatting, network patterns)"
+    echo "                These are general security features, not specific to Shai-Hulud"
+    echo
+    echo "EXAMPLES:"
+    echo "  $0 /path/to/your/project                    # Core Shai-Hulud detection only"
+    echo "  $0 --paranoid /path/to/your/project         # Core + advanced security checks"
     exit 1
 }
 
@@ -86,29 +95,18 @@ print_status() {
     echo -e "${color}${message}${NC}"
 }
 
-# Show file content preview
+# Show file content preview (simplified for less verbose output)
 show_file_preview() {
     local file_path=$1
     local context="$2"
-    echo -e "   ${BLUE}┌─ File: $file_path${NC}"
-    echo -e "   ${BLUE}│  Context: $context${NC}"
-    echo -e "   ${BLUE}│${NC}"
 
-    if [[ -f "$file_path" && -r "$file_path" ]]; then
-        # Show first 10 lines with line numbers
-        head -10 "$file_path" | while IFS= read -r line; do
-            echo -e "   ${BLUE}│${NC}  $line"
-        done
-
-        # If file is longer than 10 lines, show indicator
-        if [[ $(wc -l < "$file_path" 2>/dev/null) -gt 10 ]]; then
-            echo -e "   ${BLUE}│${NC}  ${YELLOW}... (file continues)${NC}"
-        fi
-    else
-        echo -e "   ${BLUE}│${NC}  ${RED}[Unable to read file]${NC}"
+    # Only show file preview for HIGH RISK items to reduce noise
+    if [[ "$context" == *"HIGH RISK"* ]]; then
+        echo -e "   ${BLUE}┌─ File: $file_path${NC}"
+        echo -e "   ${BLUE}│  Context: $context${NC}"
+        echo -e "   ${BLUE}└─${NC}"
+        echo
     fi
-    echo -e "   ${BLUE}└─${NC}"
-    echo
 }
 
 # Check for shai-hulud workflow files
@@ -477,11 +475,310 @@ check_package_integrity() {
     done < <(find "$scan_dir" -name "package-lock.json" -o -name "yarn.lock" -print0 2>/dev/null)
 }
 
+# Check for typosquatting and homoglyph attacks
+check_typosquatting() {
+    local scan_dir=$1
+
+    # Popular packages commonly targeted for typosquatting
+    local popular_packages=(
+        "react" "vue" "angular" "express" "lodash" "axios" "typescript"
+        "webpack" "babel" "eslint" "jest" "mocha" "chalk" "debug"
+        "commander" "inquirer" "yargs" "request" "moment" "underscore"
+        "jquery" "bootstrap" "socket.io" "redis" "mongoose" "passport"
+    )
+
+    # Cyrillic and Unicode lookalike characters for common ASCII characters
+    # Using od to detect non-ASCII characters in package names
+    while IFS= read -r -d '' package_file; do
+        if [[ -f "$package_file" && -r "$package_file" ]]; then
+            # Extract package names from dependencies sections only
+            local package_names
+            package_names=$(awk '
+                /^[[:space:]]*"dependencies"[[:space:]]*:/ { in_deps=1; next }
+                /^[[:space:]]*"devDependencies"[[:space:]]*:/ { in_deps=1; next }
+                /^[[:space:]]*"peerDependencies"[[:space:]]*:/ { in_deps=1; next }
+                /^[[:space:]]*"optionalDependencies"[[:space:]]*:/ { in_deps=1; next }
+                /^[[:space:]]*}/ && in_deps { in_deps=0; next }
+                in_deps && /^[[:space:]]*"[^"]+":/ {
+                    gsub(/^[[:space:]]*"/, "", $0)
+                    gsub(/".*$/, "", $0)
+                    if ($0 ~ /^[a-zA-Z@][a-zA-Z0-9@\/\._-]*$/) print $0
+                }
+            ' "$package_file" | sort -u)
+
+            while IFS= read -r package_name; do
+                [[ -z "$package_name" ]] && continue
+
+                # Skip if not a package name (too short, no alpha chars, etc)
+                [[ ${#package_name} -lt 2 ]] && continue
+                echo "$package_name" | grep -q '[a-zA-Z]' || continue
+
+                # Check for non-ASCII characters using LC_ALL=C for compatibility
+                local has_unicode=0
+                if ! LC_ALL=C echo "$package_name" | grep -q '^[a-zA-Z0-9@/._-]*$'; then
+                    # Package name contains characters outside basic ASCII range
+                    has_unicode=1
+                fi
+
+                if [[ $has_unicode -eq 1 ]]; then
+                    # Simplified check - if it contains non-standard characters, flag it
+                    TYPOSQUATTING_WARNINGS+=("$package_file:Potential Unicode/homoglyph characters in package: $package_name")
+                fi
+
+                # Check for confusable characters (common typosquatting patterns)
+                local confusables=(
+                    # Common character substitutions
+                    "rn:m" "vv:w" "cl:d" "ii:i" "nn:n" "oo:o"
+                )
+
+                for confusable in "${confusables[@]}"; do
+                    local pattern="${confusable%:*}"
+                    local target="${confusable#*:}"
+                    if echo "$package_name" | grep -q "$pattern"; then
+                        TYPOSQUATTING_WARNINGS+=("$package_file:Potential typosquatting pattern '$pattern' in package: $package_name")
+                    fi
+                done
+
+                # Check similarity to popular packages using simple character distance
+                for popular in "${popular_packages[@]}"; do
+                    # Skip exact matches
+                    [[ "$package_name" == "$popular" ]] && continue
+
+                    # Skip common legitimate variations
+                    case "$package_name" in
+                        "test"|"tests"|"testing") continue ;;  # Don't flag test packages
+                        "types"|"util"|"utils"|"core") continue ;;  # Common package names
+                        "lib"|"libs"|"common"|"shared") continue ;;
+                    esac
+
+                    # Check for single character differences (common typos) - but only for longer package names
+                    if [[ ${#package_name} -eq ${#popular} && ${#package_name} -gt 4 ]]; then
+                        local diff_count=0
+                        for ((i=0; i<${#package_name}; i++)); do
+                            if [[ "${package_name:$i:1}" != "${popular:$i:1}" ]]; then
+                                ((diff_count++))
+                            fi
+                        done
+
+                        if [[ $diff_count -eq 1 ]]; then
+                            # Additional check - avoid common legitimate variations
+                            if [[ "$package_name" != *"-"* && "$popular" != *"-"* ]]; then
+                                TYPOSQUATTING_WARNINGS+=("$package_file:Potential typosquatting of '$popular': $package_name (1 character difference)")
+                            fi
+                        fi
+                    fi
+
+                    # Check for common typosquatting patterns
+                    if [[ ${#package_name} -eq $((${#popular} - 1)) ]]; then
+                        # Missing character check
+                        for ((i=0; i<=${#popular}; i++)); do
+                            local test_name="${popular:0:$i}${popular:$((i+1))}"
+                            if [[ "$package_name" == "$test_name" ]]; then
+                                TYPOSQUATTING_WARNINGS+=("$package_file:Potential typosquatting of '$popular': $package_name (missing character)")
+                                break
+                            fi
+                        done
+                    fi
+
+                    # Check for extra character
+                    if [[ ${#package_name} -eq $((${#popular} + 1)) ]]; then
+                        for ((i=0; i<=${#package_name}; i++)); do
+                            local test_name="${package_name:0:$i}${package_name:$((i+1))}"
+                            if [[ "$test_name" == "$popular" ]]; then
+                                TYPOSQUATTING_WARNINGS+=("$package_file:Potential typosquatting of '$popular': $package_name (extra character)")
+                                break
+                            fi
+                        done
+                    fi
+                done
+
+                # Check for namespace confusion (e.g., @typescript_eslinter vs @typescript-eslint)
+                if [[ "$package_name" == @* ]]; then
+                    local namespace="${package_name%%/*}"
+                    local package_part="${package_name#*/}"
+
+                    # Common namespace typos
+                    local suspicious_namespaces=(
+                        "@types" "@angular" "@typescript" "@react" "@vue" "@babel"
+                    )
+
+                    for suspicious in "${suspicious_namespaces[@]}"; do
+                        if [[ "$namespace" != "$suspicious" ]] && echo "$namespace" | grep -q "${suspicious:1}"; then
+                            # Check if it's a close match but not exact
+                            local ns_clean="${namespace:1}"  # Remove @
+                            local sus_clean="${suspicious:1}"  # Remove @
+
+                            if [[ ${#ns_clean} -eq ${#sus_clean} ]]; then
+                                local ns_diff=0
+                                for ((i=0; i<${#ns_clean}; i++)); do
+                                    if [[ "${ns_clean:$i:1}" != "${sus_clean:$i:1}" ]]; then
+                                        ((ns_diff++))
+                                    fi
+                                done
+
+                                if [[ $ns_diff -ge 1 && $ns_diff -le 2 ]]; then
+                                    TYPOSQUATTING_WARNINGS+=("$package_file:Suspicious namespace variation: $namespace (similar to $suspicious)")
+                                fi
+                            fi
+                        fi
+                    done
+                fi
+
+            done <<< "$package_names"
+        fi
+    done < <(find "$scan_dir" -name "package.json" -print0 2>/dev/null)
+}
+
+# Check for network exfiltration patterns
+check_network_exfiltration() {
+    local scan_dir=$1
+
+    # Suspicious domains and patterns beyond webhook.site
+    local suspicious_domains=(
+        "pastebin.com" "hastebin.com" "ix.io" "0x0.st" "transfer.sh"
+        "file.io" "anonfiles.com" "mega.nz" "dropbox.com/s/"
+        "discord.com/api/webhooks" "telegram.org" "t.me"
+        "ngrok.io" "localtunnel.me" "serveo.net"
+        "requestbin.com" "webhook.site" "beeceptor.com"
+        "pipedream.com" "zapier.com/hooks"
+    )
+
+    # Suspicious IP patterns (private IPs used for exfiltration, common C2 patterns)
+    local suspicious_ip_patterns=(
+        "10\\.0\\." "192\\.168\\." "172\\.(1[6-9]|2[0-9]|3[01])\\."  # Private IPs
+        "[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}:[0-9]{4,5}"  # IP:Port
+    )
+
+    # Scan JavaScript, TypeScript, and JSON files for network patterns
+    while IFS= read -r -d '' file; do
+        if [[ -f "$file" && -r "$file" ]]; then
+            # Check for hardcoded IP addresses (simplified)
+            # Skip vendor/library files to reduce false positives
+            if [[ "$file" != *"/vendor/"* && "$file" != *"/node_modules/"* ]]; then
+                if grep -q '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' "$file" 2>/dev/null; then
+                    local ips_context
+                    ips_context=$(grep -o '[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}' "$file" 2>/dev/null | head -3 | tr '\n' ' ')
+                    # Skip common safe IPs
+                    if [[ "$ips_context" != *"127.0.0.1"* && "$ips_context" != *"0.0.0.0"* ]]; then
+                        # Check if it's a minified file to avoid showing file path details
+                        if [[ "$file" == *".min.js"* ]]; then
+                            NETWORK_EXFILTRATION_WARNINGS+=("$file:Hardcoded IP addresses found (minified file): $ips_context")
+                        else
+                            NETWORK_EXFILTRATION_WARNINGS+=("$file:Hardcoded IP addresses found: $ips_context")
+                        fi
+                    fi
+                fi
+            fi
+
+            # Check for suspicious domains (but avoid package-lock.json and vendor files to reduce noise)
+            if [[ "$file" != *"package-lock.json"* && "$file" != *"yarn.lock"* && "$file" != *"/vendor/"* && "$file" != *"/node_modules/"* ]]; then
+                for domain in "${suspicious_domains[@]}"; do
+                    # Use word boundaries and URL patterns to avoid false positives like "timeZone" containing "t.me"
+                    if grep -q "https\?://[^[:space:]]*$domain\|[[:space:]]$domain[[:space:/]\"\']" "$file" 2>/dev/null; then
+                        # Additional check - make sure it's not just a comment or documentation
+                        local suspicious_usage
+                        suspicious_usage=$(grep "https\?://[^[:space:]]*$domain\|[[:space:]]$domain[[:space:/]\"\']" "$file" | grep -v "^[[:space:]]*#\|^[[:space:]]*//" | head -1)
+                        if [[ -n "$suspicious_usage" ]]; then
+                            # Get line number and context
+                            local line_info
+                            line_info=$(grep -n "https\?://[^[:space:]]*$domain\|[[:space:]]$domain[[:space:/]\"\']" "$file" | grep -v "^[[:space:]]*#\|^[[:space:]]*//" | head -1)
+                            local line_num
+                            line_num=$(echo "$line_info" | cut -d: -f1)
+
+                            # Check if it's a minified file or has very long lines
+                            if [[ "$file" == *".min.js"* ]] || [[ $(echo "$suspicious_usage" | wc -c) -gt 150 ]]; then
+                                # Extract just around the domain
+                                local snippet
+                                snippet=$(echo "$suspicious_usage" | grep -o ".\{0,20\}$domain.\{0,20\}" | head -1)
+                                NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious domain found: $domain at line $line_num: ...${snippet}...")
+                            else
+                                local snippet
+                                snippet=$(echo "$suspicious_usage" | cut -c1-80)
+                                NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious domain found: $domain at line $line_num: ${snippet}...")
+                            fi
+                        fi
+                    fi
+                done
+            fi
+
+            # Check for base64-encoded URLs (skip vendor files to reduce false positives)
+            if [[ "$file" != *"/vendor/"* && "$file" != *"/node_modules/"* ]]; then
+                if grep -q 'atob(' "$file" 2>/dev/null || grep -q 'base64.*decode' "$file" 2>/dev/null; then
+                    # Get line number and a small snippet
+                    local line_num
+                    line_num=$(grep -n 'atob\|base64.*decode' "$file" | head -1 | cut -d: -f1)
+                    local snippet
+
+                    # For minified files, try to extract just the relevant part
+                    if [[ "$file" == *".min.js"* ]] || [[ $(head -1 "$file" | wc -c) -gt 500 ]]; then
+                        # Extract a small window around the atob call
+                        snippet=$(sed -n "${line_num}p" "$file" | grep -o '.\{0,30\}atob.\{0,30\}' | head -1)
+                        if [[ -z "$snippet" ]]; then
+                            snippet=$(sed -n "${line_num}p" "$file" | grep -o '.\{0,30\}base64.*decode.\{0,30\}' | head -1)
+                        fi
+                        NETWORK_EXFILTRATION_WARNINGS+=("$file:Base64 decoding at line $line_num: ...${snippet}...")
+                    else
+                        snippet=$(sed -n "${line_num}p" "$file" | cut -c1-80)
+                        NETWORK_EXFILTRATION_WARNINGS+=("$file:Base64 decoding at line $line_num: ${snippet}...")
+                    fi
+                fi
+            fi
+
+            # Check for DNS-over-HTTPS patterns
+            if grep -q "dns-query" "$file" 2>/dev/null || grep -q "application/dns-message" "$file" 2>/dev/null; then
+                NETWORK_EXFILTRATION_WARNINGS+=("$file:DNS-over-HTTPS pattern detected")
+            fi
+
+            # Check for WebSocket connections to unusual endpoints
+            if grep -q "ws://" "$file" 2>/dev/null || grep -q "wss://" "$file" 2>/dev/null; then
+                local ws_endpoints
+                ws_endpoints=$(grep -o 'wss\?://[^"'\''[:space:]]*' "$file" 2>/dev/null)
+                while IFS= read -r endpoint; do
+                    [[ -z "$endpoint" ]] && continue
+                    # Flag WebSocket connections that don't seem to be localhost or common development
+                    if [[ "$endpoint" != *"localhost"* && "$endpoint" != *"127.0.0.1"* ]]; then
+                        NETWORK_EXFILTRATION_WARNINGS+=("$file:WebSocket connection to external endpoint: $endpoint")
+                    fi
+                done <<< "$ws_endpoints"
+            fi
+
+            # Check for suspicious HTTP headers
+            if grep -q "X-Exfiltrate\|X-Data-Export\|X-Credential" "$file" 2>/dev/null; then
+                NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious HTTP headers detected")
+            fi
+
+            # Check for data encoding that might hide exfiltration (but be more selective)
+            if [[ "$file" != *"/vendor/"* && "$file" != *"/node_modules/"* && "$file" != *".min.js"* ]]; then
+                if grep -q "btoa(" "$file" 2>/dev/null; then
+                    # Check if it's near network operations (simplified to avoid hanging)
+                    if grep -C3 "btoa(" "$file" | grep -q "\(fetch\|XMLHttpRequest\|axios\)" 2>/dev/null; then
+                        # Additional check - make sure it's not just legitimate authentication
+                        if ! grep -C3 "btoa(" "$file" | grep -q "Authorization:\|Basic \|Bearer " 2>/dev/null; then
+                            # Get a small snippet around the btoa usage
+                            local line_num
+                            line_num=$(grep -n "btoa(" "$file" | head -1 | cut -d: -f1)
+                            local snippet
+                            snippet=$(sed -n "${line_num}p" "$file" | cut -c1-80)
+                            NETWORK_EXFILTRATION_WARNINGS+=("$file:Suspicious base64 encoding near network operation at line $line_num: ${snippet}...")
+                        fi
+                    fi
+                fi
+            fi
+
+        fi
+    done < <(find "$scan_dir" \( -name "*.js" -o -name "*.ts" -o -name "*.json" -o -name "*.mjs" \) -print0 2>/dev/null)
+}
+
 # Generate final report
 generate_report() {
+    local paranoid_mode="$1"
     echo
     print_status "$BLUE" "=============================================="
-    print_status "$BLUE" "      SHAI-HULUD DETECTION REPORT"
+    if [[ "$paranoid_mode" == "true" ]]; then
+        print_status "$BLUE" "  SHAI-HULUD + PARANOID SECURITY REPORT"
+    else
+        print_status "$BLUE" "      SHAI-HULUD DETECTION REPORT"
+    fi
     print_status "$BLUE" "=============================================="
     echo
 
@@ -697,6 +994,50 @@ generate_report() {
         echo
     fi
 
+    # Report typosquatting warnings (only in paranoid mode)
+    if [[ "$paranoid_mode" == "true" && ${#TYPOSQUATTING_WARNINGS[@]} -gt 0 ]]; then
+        print_status "$YELLOW" "⚠️  MEDIUM RISK (PARANOID): Potential typosquatting/homoglyph attacks detected:"
+        local typo_count=0
+        for entry in "${TYPOSQUATTING_WARNINGS[@]}"; do
+            [[ $typo_count -ge 5 ]] && break
+            local file_path="${entry%%:*}"
+            local warning_info="${entry#*:}"
+            echo "   - Warning: $warning_info"
+            echo "     Found in: $file_path"
+            show_file_preview "$file_path" "Potential typosquatting: $warning_info"
+            ((medium_risk++))
+            ((typo_count++))
+        done
+        if [[ ${#TYPOSQUATTING_WARNINGS[@]} -gt 5 ]]; then
+            echo "   - ... and $((${#TYPOSQUATTING_WARNINGS[@]} - 5)) more typosquatting warnings (truncated for brevity)"
+        fi
+        echo -e "   ${YELLOW}NOTE: These packages may be impersonating legitimate packages.${NC}"
+        echo -e "   ${YELLOW}Verify package names carefully and check if they should be legitimate packages.${NC}"
+        echo
+    fi
+
+    # Report network exfiltration warnings (only in paranoid mode)
+    if [[ "$paranoid_mode" == "true" && ${#NETWORK_EXFILTRATION_WARNINGS[@]} -gt 0 ]]; then
+        print_status "$YELLOW" "⚠️  MEDIUM RISK (PARANOID): Network exfiltration patterns detected:"
+        local net_count=0
+        for entry in "${NETWORK_EXFILTRATION_WARNINGS[@]}"; do
+            [[ $net_count -ge 5 ]] && break
+            local file_path="${entry%%:*}"
+            local warning_info="${entry#*:}"
+            echo "   - Warning: $warning_info"
+            echo "     Found in: $file_path"
+            show_file_preview "$file_path" "Network exfiltration pattern: $warning_info"
+            ((medium_risk++))
+            ((net_count++))
+        done
+        if [[ ${#NETWORK_EXFILTRATION_WARNINGS[@]} -gt 5 ]]; then
+            echo "   - ... and $((${#NETWORK_EXFILTRATION_WARNINGS[@]} - 5)) more network warnings (truncated for brevity)"
+        fi
+        echo -e "   ${YELLOW}NOTE: These patterns may indicate data exfiltration or communication with C2 servers.${NC}"
+        echo -e "   ${YELLOW}Review network connections and data flows carefully.${NC}"
+        echo
+    fi
+
     total_issues=$((high_risk + medium_risk))
     local low_risk_count=${#LOW_RISK_FINDINGS[@]}
 
@@ -728,6 +1069,9 @@ generate_report() {
         print_status "$YELLOW" "   - High risk issues likely indicate actual compromise"
         print_status "$YELLOW" "   - Medium risk issues require manual investigation"
         print_status "$YELLOW" "   - Low risk issues are likely false positives from legitimate code"
+        if [[ "$paranoid_mode" == "true" ]]; then
+            print_status "$YELLOW" "   - Issues marked (PARANOID) are general security checks, not Shai-Hulud specific"
+        fi
         print_status "$YELLOW" "   - Consider running additional security scans"
         print_status "$YELLOW" "   - Review your npm audit logs and package history"
 
@@ -745,11 +1089,38 @@ generate_report() {
 
 # Main execution
 main() {
-    if [[ $# -ne 1 ]]; then
+    local paranoid_mode=false
+    local scan_dir=""
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --paranoid)
+                paranoid_mode=true
+                shift
+                ;;
+            --help|-h)
+                usage
+                ;;
+            -*)
+                echo "Unknown option: $1"
+                usage
+                ;;
+            *)
+                if [[ -z "$scan_dir" ]]; then
+                    scan_dir="$1"
+                else
+                    echo "Too many arguments"
+                    usage
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    if [[ -z "$scan_dir" ]]; then
         usage
     fi
-
-    local scan_dir="$1"
 
     if [[ ! -d "$scan_dir" ]]; then
         print_status "$RED" "Error: Directory '$scan_dir' does not exist."
@@ -760,10 +1131,14 @@ main() {
     scan_dir=$(cd "$scan_dir" && pwd)
 
     print_status "$GREEN" "Starting Shai-Hulud detection scan..."
-    print_status "$BLUE" "Scanning directory: $scan_dir"
+    if [[ "$paranoid_mode" == "true" ]]; then
+        print_status "$BLUE" "Scanning directory: $scan_dir (with paranoid mode enabled)"
+    else
+        print_status "$BLUE" "Scanning directory: $scan_dir"
+    fi
     echo
 
-    # Run all checks
+    # Run core Shai-Hulud detection checks
     check_workflow_files "$scan_dir"
     check_file_hashes "$scan_dir"
     check_packages "$scan_dir"
@@ -774,8 +1149,16 @@ main() {
     check_shai_hulud_repos "$scan_dir"
     check_package_integrity "$scan_dir"
 
+    # Run additional security checks only in paranoid mode
+    if [[ "$paranoid_mode" == "true" ]]; then
+        print_status "$BLUE" "🔍+ Checking for typosquatting and homoglyph attacks..."
+        check_typosquatting "$scan_dir"
+        print_status "$BLUE" "🔍+ Checking for network exfiltration patterns..."
+        check_network_exfiltration "$scan_dir"
+    fi
+
     # Generate report
-    generate_report
+    generate_report "$paranoid_mode"
 }
 
 # Run main function with all arguments
