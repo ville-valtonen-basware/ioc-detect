@@ -120,6 +120,7 @@ Check these security advisories regularly for newly discovered compromised packa
 
 ## Latest Updates
 
+- **2025-09-19 v2.1.0**: **Enhanced Error Handling & pnpm Support** - Added robust error handling for grep pipelines to prevent script hangs (PR #13). Added pnpm-lock.yaml support with YAML-to-JSON transformation for full lockfile coverage. Improved reliability across different shell environments
 - **2025-09-18 v2.0.0**: **Multi-Attack Coverage** - Added 26 packages from Chalk/Debug crypto theft attack (571+ total). Now covers cryptocurrency wallet replacement patterns, XMLHttpRequest hijacking, and malicious function detection. Added JFrog and Aikido blog references as primary sources
 - **2025-09-17 v1.3.0**: **Complete JFrog integration** - Added 273 additional packages (540+ total) with comprehensive coverage of the complete JFrog 517-package analysis. Added 6 new namespaces: @yoobic, @basic-ui-components-stc, @nexe, @thangved, @tnf-dev, and @ui-ux-gang
 - **2025-09-17 v1.2.0**: Expanded to 270+ packages with @operato, @teselagen, @things-factory, @nstudio, and @crowdstrike namespaces
