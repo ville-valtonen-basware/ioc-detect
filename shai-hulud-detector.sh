@@ -171,6 +171,7 @@ check_file_hashes() {
     filesChecked=0
 
     while IFS=" " read -r file_hash file; do
+        if [ -z "${file_hash}" ]; then continue; fi
 
         # Check for malicious files
         for malicious_hash in "${MALICIOUS_HASHLIST[@]}"; do
@@ -182,8 +183,8 @@ check_file_hashes() {
         filesChecked=$((filesChecked+1))
         echo -ne "\r\033[K$filesChecked / $filesCount checked ($((filesChecked*100/filesCount)) %)"
     done < <(\
-      find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) -print0 -readable 2>/dev/null |\
-      xargs -0 -P ${PARALLELISM} -I. shasum -a 256 .
+      find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) -print0 2>/dev/null |\
+      xargs -0 -P ${PARALLELISM} -I. shasum -a 256 . 2>/dev/null
     )
     echo -ne "\r\033[K"
 }
