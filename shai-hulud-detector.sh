@@ -349,6 +349,8 @@ check_packages() {
     local filesChecked
     filesChecked=0
     while IFS= read -r -d '' package_file; do
+        if [ ! -r "${package_file}" ]; then continue; fi
+
         while IFS=: read -r package_name package_version; do
             package_version=$(echo "${package_version}" | cut -d'"' -f2)
             package_name=$(echo "${package_name}" | cut -d'"' -f2)
@@ -379,7 +381,7 @@ check_packages() {
         filesChecked=$((filesChecked+1))
         echo -ne "\r\033[K$filesChecked / $filesCount checked ($((filesChecked*100/filesCount)) %)"
 
-    done < <(find "$scan_dir" -name "package.json" -type f -readable -print0 2>/dev/null)
+    done < <(find "$scan_dir" -name "package.json" -type f -print0 2>/dev/null)
     echo -ne "\r\033[K"
 }
 
