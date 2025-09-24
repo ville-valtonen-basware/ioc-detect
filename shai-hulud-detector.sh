@@ -1317,21 +1317,12 @@ generate_report() {
         echo
     fi
 
-    # Report namespace warnings
-    if [[ ${#NAMESPACE_WARNINGS[@]} -gt 0 ]]; then
-        print_status "$YELLOW" "⚠️  MEDIUM RISK: Packages from compromised namespaces:"
-        for entry in "${NAMESPACE_WARNINGS[@]}"; do
-            local file_path="${entry%%:*}"
-            local namespace_info="${entry#*:}"
-            echo "   - Warning: $namespace_info"
-            echo "     Found in: $file_path"
-            show_file_preview "$file_path" "Contains packages from compromised namespace"
-            medium_risk=$((medium_risk+1))
-        done
-        echo -e "   ${YELLOW}NOTE: These namespaces have been compromised but specific versions may vary.${NC}"
-        echo -e "   ${YELLOW}Check package versions against known compromise lists.${NC}"
-        echo
-    fi
+    # Store namespace warnings as LOW risk findings for later reporting
+    for entry in "${NAMESPACE_WARNINGS[@]}"; do
+        local file_path="${entry%%:*}"
+        local namespace_info="${entry#*:}"
+        LOW_RISK_FINDINGS+=("Namespace warning: $namespace_info (found in $(basename "$file_path"))")
+    done
 
     # Report package integrity issues
     if [[ ${#INTEGRITY_ISSUES[@]} -gt 0 ]]; then
