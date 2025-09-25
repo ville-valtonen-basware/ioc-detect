@@ -1409,7 +1409,6 @@ generate_report() {
         if [[ $low_risk_count -gt 0 ]]; then
             print_status "$BLUE" "   Low Risk (informational): $low_risk_count"
         fi
-        print_status "$BLUE" "   Total Critical Issues: $total_issues"
         echo
         print_status "$YELLOW" "⚠️  IMPORTANT:"
         print_status "$YELLOW" "   - High risk issues likely indicate actual compromise"
