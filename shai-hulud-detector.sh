@@ -419,6 +419,8 @@ check_postinstall_hooks() {
         filesChecked=$((filesChecked+1))
         echo -ne "\r\033[K$filesChecked checked"
     done < <(find "$scan_dir" -name "package.json" -print0 2>/dev/null)
+
+    echo -ne "\r\033[K"
 }
 
 # Check for suspicious content patterns
@@ -443,6 +445,9 @@ check_content() {
 check_crypto_theft_patterns() {
     local scan_dir=$1
     print_status "$BLUE" "🔍 Checking for cryptocurrency theft patterns..."
+
+    local filesChecked
+    filesChecked=0
 
     # Check for wallet address replacement patterns
     while IFS= read -r -d '' file; do
@@ -481,7 +486,13 @@ check_crypto_theft_patterns() {
         if grep -q -E "ethereum.*0x\[a-fA-F0-9\]|bitcoin.*\[13\]\[a-km-zA-HJ-NP-Z1-9\]" "$file" 2>/dev/null; then
             CRYPTO_PATTERNS+=("$file:Cryptocurrency regex patterns detected")
         fi
+
+        filesChecked=$((filesChecked+1))
+        echo -ne "\r\033[K$filesChecked checked"
+        
     done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.ts" -o -name "*.json" \) -print0 2>/dev/null)
+
+	echo -ne "\r\033[K"
 }
 
 # Check for shai-hulud git branches
@@ -570,11 +581,17 @@ check_trufflehog_activity() {
     local scan_dir=$1
     print_status "$BLUE" "🔍 Checking for Trufflehog activity and secret scanning..."
 
+    local filesChecked
+    filesChecked=0
+
     # Look for trufflehog binary files (always HIGH RISK)
     while IFS= read -r binary_file; do
         if [[ -f "$binary_file" ]]; then
             TRUFFLEHOG_ACTIVITY+=("$binary_file:HIGH:Trufflehog binary found")
         fi
+
+        filesChecked=$((filesChecked+1))
+        echo -ne "\r\033[K$filesChecked checked"
     done < <(find "$scan_dir" -name "*trufflehog*" -type f 2>/dev/null)
 
     # Look for potential trufflehog activity in files
@@ -665,13 +682,21 @@ check_trufflehog_activity() {
                 esac
             fi
         fi
+
+        filesChecked=$((filesChecked+1))
+        echo -ne "\r\033[K$filesChecked checked"
     done < <(find "$scan_dir" -type f \( -name "*.js" -o -name "*.py" -o -name "*.sh" -o -name "*.json" \) -print0 2>/dev/null)
+
+	echo -ne "\r\033[K"
 }
 
 # Check for Shai-Hulud repositories and migration patterns
 check_shai_hulud_repos() {
     local scan_dir=$1
     print_status "$BLUE" "🔍 Checking for Shai-Hulud repositories and migration patterns..."
+
+    local filesChecked
+    filesChecked=0
 
     while IFS= read -r -d '' git_dir; do
         local repo_dir
@@ -704,13 +729,20 @@ check_shai_hulud_repos() {
                 SHAI_HULUD_REPOS+=("$repo_dir:Contains suspicious data.json (possible base64-encoded credentials)")
             fi
         fi
+
+        filesChecked=$((filesChecked+1))
+        echo -ne "\r\033[K$filesChecked checked"
     done < <(find "$scan_dir" -name ".git" -type d -print0 2>/dev/null)
+	echo -ne "\r\033[K"
 }
 
 # Check package-lock.json and yarn.lock files for integrity issues
 check_package_integrity() {
     local scan_dir=$1
     print_status "$BLUE" "🔍 Checking package lock files for integrity issues..."
+
+    local filesChecked
+    filesChecked=0
 
     # Check package-lock.json files
     while IFS= read -r -d '' lockfile; do
@@ -763,7 +795,12 @@ check_package_integrity() {
             fi
 
         fi
+
+        filesChecked=$((filesChecked+1))
+        echo -ne "\r\033[K$filesChecked checked"
     done < <(find "$scan_dir" \( -name "pnpm-lock.yaml" -o -name "yarn.lock" -o -name "package-lock.json" \) -print0 2>/dev/null)
+
+	echo -ne "\r\033[K"
 }
 
 # Check for typosquatting and homoglyph attacks
