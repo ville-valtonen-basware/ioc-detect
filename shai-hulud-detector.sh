@@ -399,6 +399,9 @@ check_postinstall_hooks() {
     local scan_dir=$1
     print_status "$BLUE" "🔍 Checking for suspicious postinstall hooks..."
 
+    local filesChecked
+    filesChecked=0
+
     while IFS= read -r -d '' package_file; do
         if [[ -f "$package_file" && -r "$package_file" ]]; then
             # Look for postinstall scripts
@@ -412,6 +415,9 @@ check_postinstall_hooks() {
                 fi
             fi
         fi
+
+        filesChecked=$((filesChecked+1))
+        echo -ne "\r\033[K$filesChecked checked"
     done < <(find "$scan_dir" -name "package.json" -print0 2>/dev/null)
 }
 
